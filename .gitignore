@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+# Lock files – keep for reproducible installs (uncomment to ignore)
+# package-lock.json
+# yarn.lock
+pnpm-lock.yaml
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Uploads & user content
+uploads/
+!uploads/.gitkeep
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build / output
+dist/
+build/
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE / editor
+.vscode/
+.idea/
+*.sublime-*
+
+# MongoDB / local DB
+*.db
+*.sqlite
+
+# Optional npm cache
+.npm
+
+# Optional eslint cache
+.eslintcache

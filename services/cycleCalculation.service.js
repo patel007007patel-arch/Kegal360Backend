@@ -1,0 +1,277 @@
+/**
+ * Cycle Calculation Service
+ * Calculates cycle phases, predictions, and calendar data based on user's onboarding answers
+ */
+
+export const calculateCurrentPhase = (lastPeriodStart, cycleLength = 28) => {
+  if (!lastPeriodStart) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const periodStart = new Date(lastPeriodStart);
+  periodStart.setHours(0, 0, 0, 0);
+
+  // Calculate days since last period started
+  const daysSincePeriod = Math.floor((today - periodStart) / (1000 * 60 * 60 * 24));
+
+  // Calculate cycle day (1 = first day of period)
+  const cycleDay = (daysSincePeriod % cycleLength) + 1;
+
+  // Phase calculation based on cycle day
+  // Typical cycle: Menstrual (1-5), Follicular (6-13), Ovulation (14-16), Luteal (17-28)
+  let phase;
+  let phaseName;
+
+  if (cycleDay >= 1 && cycleDay <= 5) {
+    phase = 'menstrual';
+    phaseName = 'Period';
+  } else if (cycleDay >= 6 && cycleDay <= 13) {
+    phase = 'follicular';
+    phaseName = 'Follicular';
+  } else if (cycleDay >= 14 && cycleDay <= 16) {
+    phase = 'ovulation';
+    phaseName = 'Ovulation';
+  } else {
+    phase = 'luteal';
+    phaseName = 'Luteal';
+  }
+
+  return {
+    phase,
+    phaseName,
+    cycleDay,
+    daysSincePeriod
+  };
+};
+
+export const calculateNextPeriod = (lastPeriodStart, cycleLength = 28) => {
+  if (!lastPeriodStart) return null;
+
+  const periodStart = new Date(lastPeriodStart);
+  periodStart.setHours(0, 0, 0, 0);
+
+  const nextPeriod = new Date(periodStart);
+  nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const daysUntil = Math.ceil((nextPeriod - today) / (1000 * 60 * 60 * 24));
+
+  return {
+    date: nextPeriod,
+    daysUntil,
+    isOverdue: daysUntil < 0
+  };
+};
+
+export const calculateNextOvulation = (lastPeriodStart, cycleLength = 28) => {
+  if (!lastPeriodStart) return null;
+
+  const periodStart = new Date(lastPeriodStart);
+  periodStart.setHours(0, 0, 0, 0);
+
+  // Ovulation typically occurs 14 days before next period
+  const nextPeriod = new Date(periodStart);
+  nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
+
+  const nextOvulation = new Date(nextPeriod);
+  nextOvulation.setDate(nextOvulation.getDate() - 14);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // If ovulation already passed this cycle, calculate for next cycle
+  if (nextOvulation < today) {
+    nextOvulation.setDate(nextOvulation.getDate() + cycleLength);
+  }
+
+  const daysUntil = Math.ceil((nextOvulation - today) / (1000 * 60 * 60 * 24));
+
+  return {
+    date: nextOvulation,
+    daysUntil
+  };
+};
+
+export const calculateFertileWindow = (lastPeriodStart, cycleLength = 28) => {
+  if (!lastPeriodStart) return null;
+
+  const nextOvulation = calculateNextOvulation(lastPeriodStart, cycleLength);
+  if (!nextOvulation) return null;
+
+  const fertileStart = new Date(nextOvulation.date);
+  fertileStart.setDate(fertileStart.getDate() - 5); // 5 days before ovulation
+
+  const fertileEnd = new Date(nextOvulation.date);
+  fertileEnd.setDate(fertileEnd.getDate() + 1); // 1 day after ovulation
+
+  return {
+    start: fertileStart,
+    end: fertileEnd,
+    ovulationDate: nextOvulation.date
+  };
+};
+
+export const generateCalendarData = (user, month, year) => {
+  if (!user.lastPeriodStart || !user.cycleLength) {
+    return {
+      calendar: [],
+      phases: {}
+    };
+  }
+
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+
+  const calendar = [];
+  const phases = {
+    menstrual: [],
+    follicular: [],
+    ovulation: [],
+    luteal: []
+  };
+
+  // Calculate phase for each day in the month
+  for (let day = 1; day <= endDate.getDate(); day++) {
+    const currentDate = new Date(year, month - 1, day);
+    currentDate.setHours(0, 0, 0, 0);
+
+    const periodStart = new Date(user.lastPeriodStart);
+    periodStart.setHours(0, 0, 0, 0);
+
+    // Calculate days since last period
+    const daysSincePeriod = Math.floor((currentDate - periodStart) / (1000 * 60 * 60 * 24));
+
+    // Handle negative days (before last period)
+    if (daysSincePeriod < 0) {
+      // Calculate from previous cycle
+      const cyclesBack = Math.ceil(Math.abs(daysSincePeriod) / user.cycleLength);
+      const adjustedPeriodStart = new Date(periodStart);
+      adjustedPeriodStart.setDate(adjustedPeriodStart.getDate() - (cyclesBack * user.cycleLength));
+      
+      const adjustedDays = Math.floor((currentDate - adjustedPeriodStart) / (1000 * 60 * 60 * 24));
+      const cycleDay = (adjustedDays % user.cycleLength) + 1;
+      
+      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength);
+      calendar.push({
+        date: currentDate,
+        day: day,
+        cycleDay,
+        phase: phaseInfo.phase,
+        phaseName: phaseInfo.phaseName,
+        isPeriod: phaseInfo.isPeriod
+      });
+
+      if (phases[phaseInfo.phase]) {
+        phases[phaseInfo.phase].push(day);
+      }
+    } else {
+      const cycleDay = (daysSincePeriod % user.cycleLength) + 1;
+      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength);
+      
+      calendar.push({
+        date: currentDate,
+        day: day,
+        cycleDay,
+        phase: phaseInfo.phase,
+        phaseName: phaseInfo.phaseName,
+        isPeriod: phaseInfo.isPeriod
+      });
+
+      if (phases[phaseInfo.phase]) {
+        phases[phaseInfo.phase].push(day);
+      }
+    }
+  }
+
+  return {
+    calendar,
+    phases
+  };
+};
+
+const getPhaseFromCycleDay = (cycleDay, cycleLength) => {
+  // Calculate phase based on cycle day
+  // Menstrual: Days 1-5 (or periodLength if known)
+  const periodLength = 5; // Default, can be customized
+  const ovulationDay = Math.floor(cycleLength / 2); // Typically around day 14 for 28-day cycle
+
+  let phase;
+  let phaseName;
+  let isPeriod = false;
+
+  if (cycleDay >= 1 && cycleDay <= periodLength) {
+    phase = 'menstrual';
+    phaseName = 'Menstrual';
+    isPeriod = true;
+  } else if (cycleDay > periodLength && cycleDay < ovulationDay - 2) {
+    phase = 'follicular';
+    phaseName = 'Follicular';
+  } else if (cycleDay >= ovulationDay - 2 && cycleDay <= ovulationDay + 2) {
+    phase = 'ovulation';
+    phaseName = 'Ovulation';
+  } else {
+    phase = 'luteal';
+    phaseName = 'Luteal';
+  }
+
+  return { phase, phaseName, isPeriod };
+};
+
+export const calculateCyclePredictions = (user) => {
+  if (!user.lastPeriodStart) {
+    return {
+      currentPhase: null,
+      cycleDay: null,
+      nextPeriod: null,
+      nextOvulation: null,
+      fertileWindow: null
+    };
+  }
+
+  const cycleLength = user.cycleType === 'regular' 
+    ? user.cycleLength || 28
+    : user.cycleLengthRange 
+      ? Math.round((user.cycleLengthRange.min + user.cycleLengthRange.max) / 2)
+      : 28;
+
+  const currentPhase = calculateCurrentPhase(user.lastPeriodStart, cycleLength);
+  const nextPeriod = calculateNextPeriod(user.lastPeriodStart, cycleLength);
+  const nextOvulation = calculateNextOvulation(user.lastPeriodStart, cycleLength);
+  const fertileWindow = calculateFertileWindow(user.lastPeriodStart, cycleLength);
+
+  return {
+    currentPhase: currentPhase ? {
+      phase: currentPhase.phase,
+      phaseName: currentPhase.phaseName,
+      cycleDay: currentPhase.cycleDay
+    } : null,
+    cycleDay: currentPhase?.cycleDay || null,
+    nextPeriod: nextPeriod ? {
+      date: nextPeriod.date.toISOString(),
+      daysUntil: nextPeriod.daysUntil,
+      isOverdue: nextPeriod.isOverdue
+    } : null,
+    nextOvulation: nextOvulation ? {
+      date: nextOvulation.date.toISOString(),
+      daysUntil: nextOvulation.daysUntil
+    } : null,
+    fertileWindow: fertileWindow ? {
+      start: fertileWindow.start.toISOString(),
+      end: fertileWindow.end.toISOString(),
+      ovulationDate: fertileWindow.ovulationDate.toISOString()
+    } : null,
+    cycleLength
+  };
+};
+
+export default {
+  calculateCurrentPhase,
+  calculateNextPeriod,
+  calculateNextOvulation,
+  calculateFertileWindow,
+  generateCalendarData,
+  calculateCyclePredictions
+};

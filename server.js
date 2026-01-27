@@ -1,0 +1,123 @@
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Import routes
+import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/user.routes.js';
+import cycleRoutes from './routes/cycle.routes.js';
+import logRoutes from './routes/log.routes.js';
+import videoRoutes from './routes/video.routes.js';
+import subscriptionRoutes from './routes/subscription.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import partnerRoutes from './routes/partner.routes.js';
+import questionRoutes from './routes/question.routes.js';
+import yogaRoutes from './routes/yoga.routes.js';
+import meditationRoutes from './routes/meditation.routes.js';
+import insightsRoutes from './routes/insights.routes.js';
+import customLogRoutes from './routes/customLog.routes.js';
+import giftRoutes from './routes/gift.routes.js';
+
+// Import notification scheduler
+import { initializeSchedulers } from './utils/notificationScheduler.js';
+
+// Load environment variables
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+
+// Middleware
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  next();
+});
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Database connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/k360', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('✅ MongoDB Connected'))
+.catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/cycles', cycleRoutes);
+app.use('/api/logs', logRoutes);
+app.use('/api/videos', videoRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/partners', partnerRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/yoga', yogaRoutes);
+app.use('/api/meditation', meditationRoutes);
+app.use('/api/insights', insightsRoutes);
+app.use('/api/custom-logs', customLogRoutes);
+app.use('/api/gifts', giftRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'K360 Backend API is running' });
+});
+
+// Test login endpoint (for debugging)
+app.post('/api/auth/login/test', (req, res) => {
+  console.log('🧪 Test login endpoint hit!');
+  console.log('📦 Request body:', req.body);
+  res.json({ 
+    success: true, 
+    message: 'Test endpoint working',
+    received: req.body 
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
+  });
+});
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Initialize notification schedulers
+  initializeSchedulers();
+});
+
+export default app;
