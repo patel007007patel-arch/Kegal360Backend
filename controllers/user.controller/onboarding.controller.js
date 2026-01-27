@@ -5,7 +5,7 @@ import Question from '../../models/Question.model.js';
 export const completeOnboarding = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { answers, trackCycle, cycleType, cycleLength, cycleLengthRange, lastPeriodStart, lastPeriodEnd, appFor } = req.body;
+    const { answers, trackCycle, cycleType, cycleLength, periodLength, cycleLengthRange, lastPeriodStart, lastPeriodEnd, appFor, name } = req.body;
 
     // Update user onboarding data
     const updateData = {
@@ -13,9 +13,26 @@ export const completeOnboarding = async (req, res) => {
       appFor: appFor || 'myself'
     };
 
+    // "What should we call you?" → saved as user.name and shown on Home ("Welcome, {name}")
+    if (name != null && String(name).trim()) {
+      updateData.name = String(name).trim();
+    } else if (answers && Array.isArray(answers) && answers.length > 0) {
+      const nameQuestion = await Question.findOne({
+        category: 'onboarding',
+        question: /what should we call you/i
+      });
+      if (nameQuestion) {
+        const nameAnswer = answers.find(a => a.questionId && String(a.questionId) === String(nameQuestion._id));
+        if (nameAnswer?.answer != null && String(nameAnswer.answer).trim()) {
+          updateData.name = String(nameAnswer.answer).trim();
+        }
+      }
+    }
+
     if (trackCycle !== undefined) updateData.trackCycle = trackCycle;
     if (cycleType) updateData.cycleType = cycleType;
     if (cycleLength) updateData.cycleLength = cycleLength;
+    if (periodLength !== undefined) updateData.periodLength = Math.min(14, Math.max(1, parseInt(periodLength, 10) || 5));
     if (cycleLengthRange) {
       updateData.cycleLengthRange = {
         min: cycleLengthRange.min,

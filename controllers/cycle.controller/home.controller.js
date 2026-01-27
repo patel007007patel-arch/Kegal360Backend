@@ -1,7 +1,21 @@
 import User from '../../models/User.model.js';
 import Log from '../../models/Log.model.js';
-import { calculateCyclePredictions, generateCalendarData } from '../../services/cycleCalculation.service.js';
+import Cycle from '../../models/Cycle.model.js';
+import { calculateCyclePredictions } from '../../services/cycleCalculation.service.js';
 
+/**
+ * GET /api/cycles/home
+ * Phase is resolved from the authenticated user (userId from token via req.user._id).
+ * Returns only phase-based data: no video-related fields.
+ *
+ * Total 6 phases, each with different fields:
+ * 1. Period (regular)     → cycleInfo: yourCycleDay, yourCycleDayLabel, nextPeriod, nextPeriodDays, nextOvulation, nextOvulationDays
+ * 2. Follicular (regular) → same cycleInfo fields
+ * 3. Ovulation (regular)  → same cycleInfo fields
+ * 4. Luteal (regular)     → same cycleInfo fields
+ * 5. Irregular Mode       → cycleInfo: cycleRange, lastPeriod, averageCycle
+ * 6. Wellness Mode        → wellnessStats: yogaSessionsThisWeek, activeDays, restDays
+ */
 export const getHomeData = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -14,130 +28,127 @@ export const getHomeData = async (req, res) => {
       });
     }
 
-    // If user doesn't track cycle, return wellness mode
+    const baseResponse = {
+      user: {
+        id: user._id,
+        name: user.name || user.email?.split('@')[0] || 'User'
+      },
+      hasLog: false
+    };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayLog = await Log.findOne({ user: userId, date: { $gte: today, $lt: tomorrow } });
+    baseResponse.hasLog = !!todayLog;
+
+    // Wellness mode: cycle tracking off or cycleType absent
     if (!user.trackCycle || user.cycleType === 'absent') {
-      // Get yoga/meditation stats for wellness mode
       const YogaSession = (await import('../../models/YogaSession.model.js')).default;
       const MeditationSession = (await import('../../models/MeditationSession.model.js')).default;
-
-      const today = new Date();
       const weekStart = new Date(today);
       weekStart.setDate(weekStart.getDate() - 7);
+      weekStart.setHours(0, 0, 0, 0);
 
-      const yogaSessions = await YogaSession.countDocuments({
-        user: userId,
-        date: { $gte: weekStart }
-      });
+      const [yogaSessions, yogaDocs, meditationDocs] = await Promise.all([
+        YogaSession.countDocuments({ user: userId, date: { $gte: weekStart } }),
+        YogaSession.find({ user: userId, date: { $gte: weekStart } }).select('date').lean(),
+        MeditationSession.find({ user: userId, date: { $gte: weekStart } }).select('date').lean()
+      ]);
 
-      const meditationSessions = await MeditationSession.countDocuments({
-        user: userId,
-        date: { $gte: weekStart }
-      });
-
-      const totalSessions = yogaSessions + meditationSessions;
-      const activeDays = new Set();
-      
-      const allSessions = await YogaSession.find({
-        user: userId,
-        date: { $gte: weekStart }
-      });
-      
-      allSessions.forEach(session => {
-        const date = new Date(session.date).toDateString();
-        activeDays.add(date);
-      });
+      const activeDaySet = new Set();
+      [...yogaDocs, ...meditationDocs].forEach((s) => activeDaySet.add(new Date(s.date).toDateString()));
+      const activeDays = activeDaySet.size;
+      const restDays = Math.max(0, 7 - activeDays);
 
       return res.json({
         success: true,
         data: {
+          ...baseResponse,
           mode: 'wellness',
           phaseName: 'Wellness Mode',
           phase: 'wellness',
+          phaseDisplayLabel: 'Cycle tracking off Wellness Mode',
+          cycleInfo: null,
           wellnessStats: {
-            yogaSessions: yogaSessions,
-            meditationSessions: meditationSessions,
-            totalSessions: totalSessions,
-            activeDays: activeDays.size,
-            restDays: 7 - activeDays.size
+            yogaSessionsThisWeek: yogaSessions,
+            activeDays,
+            restDays
           }
         }
       });
     }
 
-    // Calculate cycle predictions based on onboarding answers
     const predictions = calculateCyclePredictions(user);
 
-    // Get today's log if exists
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const todayLog = await Log.findOne({
-      user: userId,
-      date: {
-        $gte: today,
-        $lt: tomorrow
-      }
-    });
-
-    // Format response based on cycle type
-    let homeData;
-
+    // Irregular mode
     if (user.cycleType === 'irregular') {
-      // Irregular mode - show different info
-      const lastPeriod = user.lastPeriodStart 
-        ? Math.floor((new Date() - new Date(user.lastPeriodStart)) / (1000 * 60 * 60 * 24))
+      const lastPeriodDaysAgo = user.lastPeriodStart
+        ? Math.floor((today - new Date(user.lastPeriodStart)) / (1000 * 60 * 60 * 24))
         : null;
 
-      homeData = {
-        mode: 'irregular',
-        phaseName: 'Irregular Mode',
-        phase: 'irregular',
-        cycleInfo: {
-          cycleRange: user.cycleLengthRange 
-            ? `${user.cycleLengthRange.min}-${user.cycleLengthRange.max} days`
-            : null,
-          lastPeriod: lastPeriod ? `${lastPeriod} days ago` : null,
-          averageCycle: null // Can calculate from historical data
-        },
-        hasLog: !!todayLog
-      };
-    } else {
-      // Regular mode
-      homeData = {
-        mode: 'regular',
-        phaseName: predictions.currentPhase?.phaseName || 'Unknown',
-        phase: predictions.currentPhase?.phase || null,
-        cycleInfo: {
-          cycleDay: predictions.cycleDay 
-            ? `Day ${predictions.cycleDay} of ${predictions.cycleLength}`
-            : null,
-          nextPeriod: predictions.nextPeriod 
-            ? `In ${predictions.nextPeriod.daysUntil} days`
-            : null,
-          nextOvulation: predictions.nextOvulation 
-            ? `In ${predictions.nextOvulation.daysUntil} days`
-            : null
-        },
-        predictions: {
-          nextPeriodDate: predictions.nextPeriod?.date || null,
-          nextOvulationDate: predictions.nextOvulation?.date || null
-        },
-        hasLog: !!todayLog
-      };
+      const pastCycles = await Cycle.find({ user: userId }).sort({ startDate: -1 }).limit(12).select('cycleLength').lean();
+      const avgCycle = pastCycles.length
+        ? Math.round(pastCycles.reduce((s, c) => s + (c.cycleLength || 0), 0) / pastCycles.length)
+        : null;
+
+      const cycleRange = user.cycleLengthRange
+        ? `${user.cycleLengthRange.min}-${user.cycleLengthRange.max}`
+        : null;
+
+      return res.json({
+        success: true,
+        data: {
+          ...baseResponse,
+          mode: 'irregular',
+          phaseName: 'Irregular Mode',
+          phase: 'irregular',
+          cycleInfo: {
+            cycleRange: cycleRange || null,
+            lastPeriod: lastPeriodDaysAgo != null ? `${lastPeriodDaysAgo} days ago` : null,
+            averageCycle: avgCycle != null ? avgCycle : null
+          },
+          wellnessStats: null
+        }
+      });
     }
 
-    res.json({
+    // Regular mode: 4 phases — Period, Follicular, Ovulation, Luteal (each with same 3 data fields)
+    const phase = predictions.currentPhase?.phase || null;
+    const phaseName = predictions.currentPhase?.phaseName === 'Period'
+      ? 'Period'
+      : (predictions.currentPhase?.phaseName || 'Unknown');
+    const phaseDisplayLabel = phaseName !== 'Unknown' ? `Current Phase ${phaseName}` : 'Current Phase';
+    const cycleDayNumber = predictions.cycleDay ?? null;
+    const nextPeriodDays = predictions.nextPeriod?.daysUntil ?? null;
+    const nextOvulationDays = predictions.nextOvulation?.daysUntil ?? null;
+
+    return res.json({
       success: true,
-      data: homeData
+      data: {
+        ...baseResponse,
+        mode: 'regular',
+        phaseName,
+        phase,
+        phaseDisplayLabel,
+        cycleInfo: {
+          yourCycleDay: cycleDayNumber != null ? cycleDayNumber : null,
+          yourCycleDayLabel: cycleDayNumber != null ? `Day ${cycleDayNumber}` : null,
+          nextPeriod: nextPeriodDays != null ? `In ${nextPeriodDays} days` : null,
+          nextPeriodDays,
+          nextOvulation: nextOvulationDays != null ? `In ${nextOvulationDays} days` : null,
+          nextOvulationDays
+        },
+        wellnessStats: null
+      }
     });
   } catch (error) {
     console.error('Get home data error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Error fetching home data',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

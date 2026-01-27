@@ -8,6 +8,21 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Base URL for video/thumbnail access (server URL + path)
+const getServerUrl = () => {
+  const base = (process.env.SERVER_URL || process.env.BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+  return base;
+};
+const ASSETS_VIDEOS = '/uploads/assets/videos';
+const ASSETS_THUMBNAILS = '/uploads/assets/thumbnails';
+
+const getLocalPathFromStoredPath = (storedPath) => {
+  if (!storedPath) return null;
+  const pathname = storedPath.startsWith('http') ? new URL(storedPath).pathname : storedPath;
+  const relative = pathname.startsWith('/') ? pathname.slice(1) : pathname;
+  return path.join(__dirname, '../..', relative);
+};
+
 export const getAllVideos = async (req, res) => {
   try {
     const { 
@@ -81,20 +96,66 @@ export const getAllVideos = async (req, res) => {
 export const updateVideo = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = { ...req.body };
 
-    if (updateData.benefits) {
-      updateData.benefits = JSON.parse(updateData.benefits);
-    }
-    if (updateData.sequence) {
-      updateData.sequence = JSON.parse(updateData.sequence);
-    }
-    if (updateData.instructor) {
-      updateData.instructor = JSON.parse(updateData.instructor);
+    const currentVideo = await Video.findById(id);
+    if (!currentVideo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
     }
 
-    if (req.files && req.files.thumbnail) {
-      updateData.thumbnail = `/uploads/thumbnails/${req.files.thumbnail[0].filename}`;
+    if (typeof updateData.benefits === 'string' && updateData.benefits) {
+      try {
+        updateData.benefits = JSON.parse(updateData.benefits);
+      } catch {
+        updateData.benefits = [];
+      }
+    }
+    if (typeof updateData.sequence === 'string' && updateData.sequence) {
+      try {
+        updateData.sequence = JSON.parse(updateData.sequence);
+      } catch {
+        updateData.sequence = null;
+      }
+    }
+    if (typeof updateData.instructor === 'string' && updateData.instructor) {
+      try {
+        updateData.instructor = JSON.parse(updateData.instructor);
+      } catch {
+        updateData.instructor = null;
+      }
+    }
+    if (typeof updateData.isPremium === 'string') {
+      updateData.isPremium = updateData.isPremium === 'true';
+    }
+    if (typeof updateData.isActive === 'string') {
+      updateData.isActive = updateData.isActive === 'true';
+    }
+
+    // New video file uploaded: delete old file and set new path
+    if (req.file && req.file.fieldname === 'video') {
+      if (currentVideo.filePath) {
+        const oldPath = getLocalPathFromStoredPath(currentVideo.filePath);
+        if (oldPath && fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+      const baseUrl = getServerUrl();
+      updateData.filePath = `${baseUrl}${ASSETS_VIDEOS}/${req.file.filename}`;
+      if (typeof updateData.duration === 'string' && updateData.duration) {
+        updateData.duration = parseInt(updateData.duration, 10) || currentVideo.duration;
+        updateData.durationMinutes = Math.round((updateData.duration || 0) / 60);
+      } else if (updateData.duration === undefined) {
+        updateData.duration = currentVideo.duration;
+        updateData.durationMinutes = currentVideo.durationMinutes;
+      }
+    }
+
+    // New thumbnail uploaded
+    if (req.files && req.files.thumbnail && req.files.thumbnail.length > 0) {
+      updateData.thumbnail = `${getServerUrl()}${ASSETS_THUMBNAILS}/${req.files.thumbnail[0].filename}`;
     }
 
     const video = await Video.findByIdAndUpdate(
@@ -102,13 +163,6 @@ export const updateVideo = async (req, res) => {
       updateData,
       { new: true }
     );
-
-    if (!video) {
-      return res.status(404).json({
-        success: false,
-        message: 'Video not found'
-      });
-    }
 
     res.json({
       success: true,
@@ -138,11 +192,11 @@ export const deleteVideo = async (req, res) => {
       });
     }
 
-    // Delete file
+    // Delete file from local assets folder
     if (video.filePath) {
-      const filePath = path.join(__dirname, '..', video.filePath);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      const localPath = getLocalPathFromStoredPath(video.filePath);
+      if (localPath && fs.existsSync(localPath)) {
+        fs.unlinkSync(localPath);
       }
     }
 
@@ -221,6 +275,7 @@ const createVideo = async (req, res) => {
     }
 
     const durationMinutes = Math.round((parseInt(duration) || 0) / 60);
+    const baseUrl = getServerUrl();
 
     const video = new Video({
       title,
@@ -228,7 +283,7 @@ const createVideo = async (req, res) => {
       type,
       category: category || 'general',
       phase: phase || 'all',
-      filePath: `/uploads/videos/${req.file.filename}`,
+      filePath: `${baseUrl}${ASSETS_VIDEOS}/${req.file.filename}`,
       duration: parseInt(duration) || 0,
       durationMinutes,
       equipment: equipment || 'Equipment-free',
@@ -241,7 +296,7 @@ const createVideo = async (req, res) => {
     });
 
     if (req.files && req.files.thumbnail && req.files.thumbnail.length > 0) {
-      video.thumbnail = `/uploads/thumbnails/${req.files.thumbnail[0].filename}`;
+      video.thumbnail = `${baseUrl}${ASSETS_THUMBNAILS}/${req.files.thumbnail[0].filename}`;
     }
 
     await video.save();

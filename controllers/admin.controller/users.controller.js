@@ -260,41 +260,4 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-export const getDashboardStats = async (req, res) => {
-  try {
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ isActive: true });
-    const premiumUsers = await Subscription.countDocuments({ isActive: true });
-    const totalLogs = await Log.countDocuments();
-    const totalCycles = await Cycle.countDocuments();
-
-    // Recent users (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentUsers = await User.countDocuments({
-      createdAt: { $gte: thirtyDaysAgo }
-    });
-
-    res.json({
-      success: true,
-      data: {
-        stats: {
-          totalUsers,
-          activeUsers,
-          premiumUsers,
-          totalLogs,
-          totalCycles,
-          recentUsers
-        }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching dashboard stats',
-      error: error.message
-    });
-  }
-};
-
-export default { getAllUsers, getUserById, createUser, updateUser, deleteUser, getDashboardStats };
+export default { getAllUsers, getUserById, createUser, updateUser, deleteUser };

@@ -1,7 +1,8 @@
 import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
-import { uploadVideo, uploadThumbnail } from '../middleware/upload.middleware.js';
-import { getAllUsers, getUserById, createUser, updateUser, deleteUser, getDashboardStats } from '../controllers/admin.controller/users.controller.js';
+import { uploadVideoAndThumbnail, uploadThumbnail } from '../middleware/upload.middleware.js';
+import { getAllUsers, getUserById, createUser, updateUser, deleteUser } from '../controllers/admin.controller/users.controller.js';
+import { getDashboardStats } from '../controllers/admin.controller/dashboard.controller.js';
 import videoController from '../controllers/admin.controller/videos.controller.js';
 import Video from '../models/Video.model.js';
 import Log from '../models/Log.model.js';
@@ -27,36 +28,33 @@ router.delete('/users/:id', deleteUser);
 
 // Videos
 router.get('/videos', videoController.getAllVideos);
-// Custom middleware to handle both video and thumbnail uploads
-const uploadVideoAndThumbnail = (req, res, next) => {
-  // First upload video
-  uploadVideo.single('video')(req, res, (err) => {
-    if (err) return next(err);
-    // Store video file before thumbnail overwrites it
-    const videoFile = req.file;
-    // Then upload thumbnail (if provided)
-    uploadThumbnail.single('thumbnail')(req, res, (err) => {
-      if (err) return next(err);
-      // Restore video file to req.file
-      req.file = videoFile;
-      // Store thumbnail in req.files if it was uploaded
-      const thumbnailFile = req.file && req.file.fieldname === 'thumbnail' ? req.file : null;
-      if (thumbnailFile) {
-        // Thumbnail overwrote req.file, so restore video and store thumbnail separately
-        req.file = videoFile;
-        req.files = { thumbnail: [thumbnailFile] };
-      } else {
-        // Only video was uploaded (or no thumbnail provided)
-        req.file = videoFile;
-        req.files = {};
-      }
-      next();
+
+// Require multipart for video upload to avoid "Unexpected end of form" from busboy
+const requireMultipart = (req, res, next) => {
+  const contentType = (req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('multipart/form-data')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Video upload requires multipart/form-data. Please select a video file and try again.'
     });
-  });
+  }
+  next();
 };
 
-router.post('/videos', uploadVideoAndThumbnail, videoController.createVideo);
-router.put('/videos/:id', uploadThumbnail.single('thumbnail'), videoController.updateVideo);
+// Normalize multer .fields() result to req.file + req.files for createVideo controller
+const normalizeVideoUpload = (req, res, next) => {
+  if (req.files?.video?.[0]) {
+    req.file = req.files.video[0];
+  }
+  if (!req.files?.thumbnail) {
+    req.files = req.files || {};
+    req.files.thumbnail = [];
+  }
+  next();
+};
+
+router.post('/videos', requireMultipart, uploadVideoAndThumbnail, normalizeVideoUpload, videoController.createVideo);
+router.put('/videos/:id', requireMultipart, uploadVideoAndThumbnail, normalizeVideoUpload, videoController.updateVideo);
 router.delete('/videos/:id', videoController.deleteVideo);
 router.get('/videos/:id/stats', videoController.getVideoStats);
 

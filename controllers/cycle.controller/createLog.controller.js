@@ -5,7 +5,7 @@ import User from '../../models/User.model.js';
 export const createLog = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { date, flow, mood, symptoms, phase, temperature, notes, customLogs } = req.body;
+    const { date, flow, flowIntensity, mood, symptoms, phase, temperature, notes, customLogs } = req.body;
 
     // Check if log already exists for this date
     const existingLog = await Log.findOne({
@@ -17,6 +17,7 @@ export const createLog = async (req, res) => {
       // Update existing log
       Object.assign(existingLog, {
         flow: flow !== undefined ? flow : existingLog.flow,
+        flowIntensity: flowIntensity !== undefined ? flowIntensity : existingLog.flowIntensity,
         mood: mood !== undefined ? mood : existingLog.mood,
         symptoms: symptoms !== undefined ? symptoms : existingLog.symptoms,
         phase: phase !== undefined ? phase : existingLog.phase,
@@ -41,6 +42,7 @@ export const createLog = async (req, res) => {
       user: userId,
       date: new Date(date),
       flow,
+      flowIntensity,
       mood,
       symptoms,
       phase,

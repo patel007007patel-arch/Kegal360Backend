@@ -45,71 +45,103 @@ export const getCycleInsights = async (req, res) => {
       date: { $gte: dateRange.startDate, $lte: dateRange.endDate }
     });
 
-    // Calculate statistics
+    // All values from database: cycles + logs + user profile (no sampling)
     const cycleLengths = cycles.map(c => c.cycleLength).filter(Boolean);
     const periodLengths = cycles.map(c => c.periodLength).filter(Boolean);
 
-    // Current Regular Tracking (if user has regular cycles)
-    const currentRegular = user.cycleType === 'regular' ? {
-      cycleRange: user.cycleLengthRange ? 
-        `${user.cycleLengthRange.min}-${user.cycleLengthRange.max} days` : 
-        `${user.cycleLength} days`,
-      averageCycleLength: cycleLengths.length > 0 ?
-        Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length) : user.cycleLength,
-      periodRange: periodLengths.length > 0 ?
-        `${Math.min(...periodLengths)}-${Math.max(...periodLengths)} days` : '5-7 days',
-      averagePeriodLength: periodLengths.length > 0 ?
-        Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length) : 5
-    } : null;
-
-    // Historical Irregular Stats (if user had irregular cycles before)
-    const historicalIrregular = user.cycleType === 'irregular' ? {
-      flowRange: user.cycleLengthRange ? 
-        `${user.cycleLengthRange.min}-${user.cycleLengthRange.max} days` : null,
-      daysBetweenFlowsAvg: null, // Calculate from logs
-      periodRange: periodLengths.length > 0 ?
-        `${Math.min(...periodLengths)}-${Math.max(...periodLengths)} days` : null,
-      longestFlowFreePeriod: null // Calculate from cycles
-    } : null;
-
-    // Most Common Logs Per Phase
-    const phaseLogs = {};
-    logs.forEach(log => {
-      if (log.phase && (log.mood || log.symptoms || log.flow)) {
-        if (!phaseLogs[log.phase]) {
-          phaseLogs[log.phase] = { moods: [], symptoms: [], flows: [] };
-        }
-        if (log.mood) phaseLogs[log.phase].moods.push(...log.mood);
-        if (log.symptoms) phaseLogs[log.phase].symptoms.push(...log.symptoms);
-        if (log.flow) phaseLogs[log.phase].flows.push(log.flow);
+    // Days between period starts (from cycles) for irregular stats
+    let daysBetweenFlowsAvg = null;
+    let longestFlowFreePeriod = null;
+    if (cycles.length >= 2) {
+      const gaps = [];
+      for (let i = 1; i < cycles.length; i++) {
+        const prev = new Date(cycles[i - 1].periodStartDate || cycles[i - 1].startDate);
+        const curr = new Date(cycles[i].periodStartDate || cycles[i].startDate);
+        gaps.push(Math.round((curr - prev) / (1000 * 60 * 60 * 24)));
       }
-    });
+      if (gaps.length) {
+        daysBetweenFlowsAvg = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+        longestFlowFreePeriod = Math.max(...gaps);
+      }
+    }
 
+    // Current Regular Tracking — from DB: user profile + cycle/period lengths in range
+    const currentRegular = user.cycleType === 'regular' ? {
+      cycleRange: cycleLengths.length > 0
+        ? `${Math.min(...cycleLengths)}-${Math.max(...cycleLengths)} days`
+        : (user.cycleLengthRange ? `${user.cycleLengthRange.min}-${user.cycleLengthRange.max} days` : `${user.cycleLength || 28} days`),
+      averageCycleLength: cycleLengths.length > 0
+        ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length)
+        : (user.cycleLength || 28),
+      periodRange: periodLengths.length > 0
+        ? `${Math.min(...periodLengths)}-${Math.max(...periodLengths)} days`
+        : (user.periodLength != null ? `${user.periodLength}-${Math.min(7, user.periodLength + 2)} days` : '5-7 days'),
+      averagePeriodLength: periodLengths.length > 0
+        ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
+        : (user.periodLength ?? 5)
+    } : null;
+
+    // Historical Irregular Stats — from DB: user range + cycle gaps
+    const historicalIrregular = user.cycleType === 'irregular' ? {
+      flowRange: cycleLengths.length > 0
+        ? `${Math.min(...cycleLengths)}-${Math.max(...cycleLengths)} days`
+        : (user.cycleLengthRange ? `${user.cycleLengthRange.min}-${user.cycleLengthRange.max} days` : null),
+      daysBetweenFlowsAvg,
+      periodRange: periodLengths.length > 0
+        ? `${Math.min(...periodLengths)}-${Math.max(...periodLengths)} days`
+        : (user.periodLength != null ? `${user.periodLength}-7 days` : null),
+      longestFlowFreePeriod
+    } : null;
+
+    // Wellness Focus — from DB: when user has cycle tracking off/absent
+    const wellnessFocus = !user.trackCycle || user.cycleType === 'absent' ? {
+      description: 'Focusing on overall well-being and symptom logs'
+    } : null;
+
+    // Most common logs per phase — from DB logs only (moods, symptoms, flows)
     const mostCommonLogs = {};
-    Object.keys(phaseLogs).forEach(phase => {
-      const moodCounts = {};
-      phaseLogs[phase].moods.forEach(mood => {
-        moodCounts[mood] = (moodCounts[mood] || 0) + 1;
-      });
-      
+    const phaseKeys = ['luteal', 'menstruation', 'follicular', 'ovulation'];
+    const rawPhaseLogs = {};
+    logs.forEach(log => {
+      const p = log.phase === 'period' ? 'menstruation' : log.phase;
+      if (!p || (!log.mood?.length && !log.symptoms?.length && !log.flow)) return;
+      if (!rawPhaseLogs[p]) rawPhaseLogs[p] = { moods: [], symptoms: [], flows: [] };
+      if (log.mood) rawPhaseLogs[p].moods.push(...log.mood);
+      if (log.symptoms) rawPhaseLogs[p].symptoms.push(...log.symptoms);
+      if (log.flow) rawPhaseLogs[p].flows.push(log.flow);
+    });
+    phaseKeys.forEach(phase => {
+      const raw = rawPhaseLogs[phase] || { moods: [], symptoms: [], flows: [] };
+      const moodCounts = {}; raw.moods.forEach(m => { moodCounts[m] = (moodCounts[m] || 0) + 1; });
+      const symptomCounts = {}; raw.symptoms.forEach(s => { symptomCounts[s] = (symptomCounts[s] || 0) + 1; });
+      const flowCounts = {}; raw.flows.forEach(f => { flowCounts[f] = (flowCounts[f] || 0) + 1; });
       mostCommonLogs[phase] = {
-        moods: Object.keys(moodCounts)
-          .sort((a, b) => moodCounts[b] - moodCounts[a])
-          .slice(0, 3),
-        symptoms: [],
-        flows: []
+        moods: Object.keys(moodCounts).sort((a, b) => moodCounts[b] - moodCounts[a]).slice(0, 5),
+        symptoms: Object.keys(symptomCounts).sort((a, b) => symptomCounts[b] - symptomCounts[a]).slice(0, 5),
+        flows: Object.keys(flowCounts).sort((a, b) => flowCounts[b] - flowCounts[a]).slice(0, 3)
       };
     });
 
-    // Basal Temperature Chart Data
+    // Basal Temperature Chart — from DB logs (temperature); cycleDay from user's lastPeriodStart + cycleLength
+    const cycleLen = user.cycleType === 'regular' ? (user.cycleLength || 28) : 28;
+    const tempCycleDay = (d) => {
+      if (!user.lastPeriodStart || !cycleLen) return null;
+      const day = new Date(d);
+      day.setHours(0, 0, 0, 0);
+      const start = new Date(user.lastPeriodStart);
+      start.setHours(0, 0, 0, 0);
+      const days = Math.floor((day - start) / (1000 * 60 * 60 * 24));
+      return (days % cycleLen) + 1;
+    };
     const temperatureLogs = logs
-      .filter(log => log.temperature && log.temperature.value)
+      .filter(log => log.temperature && log.temperature.value != null)
       .map(log => ({
         date: log.date,
         temperature: log.temperature.value,
-        unit: log.temperature.unit
+        unit: log.temperature.unit || 'fahrenheit',
+        cycleDay: tempCycleDay(log.date)
       }))
-      .sort((a, b) => a.date - b.date);
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     // Cycle Length Bar Chart Data
     const cycleChartData = cycles.map(cycle => ({
@@ -124,6 +156,7 @@ export const getCycleInsights = async (req, res) => {
         period: period || `${dateRange.startDate.toLocaleDateString()} - ${dateRange.endDate.toLocaleDateString()}`,
         currentRegularTracking: currentRegular,
         historicalIrregularStats: historicalIrregular,
+        wellnessFocus,
         mostCommonLogsPerPhase: mostCommonLogs,
         basalTemperatureChart: temperatureLogs,
         cycleLengthChart: cycleChartData,

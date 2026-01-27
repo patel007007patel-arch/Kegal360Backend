@@ -3,7 +3,7 @@
  * Calculates cycle phases, predictions, and calendar data based on user's onboarding answers
  */
 
-export const calculateCurrentPhase = (lastPeriodStart, cycleLength = 28) => {
+export const calculateCurrentPhase = (lastPeriodStart, cycleLength = 28, periodLength = 5) => {
   if (!lastPeriodStart) return null;
 
   const today = new Date();
@@ -12,24 +12,19 @@ export const calculateCurrentPhase = (lastPeriodStart, cycleLength = 28) => {
   const periodStart = new Date(lastPeriodStart);
   periodStart.setHours(0, 0, 0, 0);
 
-  // Calculate days since last period started
   const daysSincePeriod = Math.floor((today - periodStart) / (1000 * 60 * 60 * 24));
-
-  // Calculate cycle day (1 = first day of period)
   const cycleDay = (daysSincePeriod % cycleLength) + 1;
+  const ovulationDay = Math.floor(cycleLength / 2);
 
-  // Phase calculation based on cycle day
-  // Typical cycle: Menstrual (1-5), Follicular (6-13), Ovulation (14-16), Luteal (17-28)
   let phase;
   let phaseName;
-
-  if (cycleDay >= 1 && cycleDay <= 5) {
+  if (cycleDay >= 1 && cycleDay <= periodLength) {
     phase = 'menstrual';
     phaseName = 'Period';
-  } else if (cycleDay >= 6 && cycleDay <= 13) {
+  } else if (cycleDay > periodLength && cycleDay < ovulationDay - 2) {
     phase = 'follicular';
     phaseName = 'Follicular';
-  } else if (cycleDay >= 14 && cycleDay <= 16) {
+  } else if (cycleDay >= ovulationDay - 2 && cycleDay <= ovulationDay + 2) {
     phase = 'ovulation';
     phaseName = 'Ovulation';
   } else {
@@ -37,12 +32,7 @@ export const calculateCurrentPhase = (lastPeriodStart, cycleLength = 28) => {
     phaseName = 'Luteal';
   }
 
-  return {
-    phase,
-    phaseName,
-    cycleDay,
-    daysSincePeriod
-  };
+  return { phase, phaseName, cycleDay, daysSincePeriod };
 };
 
 export const calculateNextPeriod = (lastPeriodStart, cycleLength = 28) => {
@@ -154,7 +144,8 @@ export const generateCalendarData = (user, month, year) => {
       const adjustedDays = Math.floor((currentDate - adjustedPeriodStart) / (1000 * 60 * 60 * 24));
       const cycleDay = (adjustedDays % user.cycleLength) + 1;
       
-      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength);
+      const periodLen = user.periodLength ?? 5;
+      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength, periodLen);
       calendar.push({
         date: currentDate,
         day: day,
@@ -169,7 +160,8 @@ export const generateCalendarData = (user, month, year) => {
       }
     } else {
       const cycleDay = (daysSincePeriod % user.cycleLength) + 1;
-      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength);
+      const periodLen = user.periodLength ?? 5;
+      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength, periodLen);
       
       calendar.push({
         date: currentDate,
@@ -192,10 +184,8 @@ export const generateCalendarData = (user, month, year) => {
   };
 };
 
-const getPhaseFromCycleDay = (cycleDay, cycleLength) => {
-  // Calculate phase based on cycle day
-  // Menstrual: Days 1-5 (or periodLength if known)
-  const periodLength = 5; // Default, can be customized
+const getPhaseFromCycleDay = (cycleDay, cycleLength, periodLength = 5) => {
+  // Menstrual: days 1 to periodLength; ovulation ~mid-cycle; rest follicular/luteal
   const ovulationDay = Math.floor(cycleLength / 2); // Typically around day 14 for 28-day cycle
 
   let phase;
@@ -237,7 +227,8 @@ export const calculateCyclePredictions = (user) => {
       ? Math.round((user.cycleLengthRange.min + user.cycleLengthRange.max) / 2)
       : 28;
 
-  const currentPhase = calculateCurrentPhase(user.lastPeriodStart, cycleLength);
+  const periodLen = user.periodLength ?? 5;
+  const currentPhase = calculateCurrentPhase(user.lastPeriodStart, cycleLength, periodLen);
   const nextPeriod = calculateNextPeriod(user.lastPeriodStart, cycleLength);
   const nextOvulation = calculateNextOvulation(user.lastPeriodStart, cycleLength);
   const fertileWindow = calculateFertileWindow(user.lastPeriodStart, cycleLength);

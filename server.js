@@ -21,6 +21,7 @@ import meditationRoutes from './routes/meditation.routes.js';
 import insightsRoutes from './routes/insights.routes.js';
 import customLogRoutes from './routes/customLog.routes.js';
 import giftRoutes from './routes/gift.routes.js';
+import seedRoutes from './routes/seed.routes.js';
 
 // Import notification scheduler
 import { initializeSchedulers } from './utils/notificationScheduler.js';
@@ -75,6 +76,7 @@ app.use('/api/meditation', meditationRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/custom-logs', customLogRoutes);
 app.use('/api/gifts', giftRoutes);
+app.use('/api/seed', seedRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -53,8 +53,12 @@ const userSchema = new mongoose.Schema({
     default: 'regular'
   },
   cycleLength: {
-    type: Number, // For regular cycles
+    type: Number, // For regular cycles (Edit Mode: "Cycle Length" in days)
     default: 28
+  },
+  periodLength: {
+    type: Number, // For regular/irregular: "Period Length" in days (default 5)
+    default: 5
   },
   cycleLengthRange: {
     min: Number, // For irregular cycles
@@ -62,7 +66,7 @@ const userSchema = new mongoose.Schema({
   },
   lastPeriodStart: Date,
   lastPeriodEnd: Date,
-  // Partner sharing
+  // Partner sharing            
   partnerCode: {
     type: String,
     unique: true,

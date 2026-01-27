@@ -5,7 +5,14 @@ import UserAnswer from '../../models/UserAnswer.model.js';
 
 export const register = async (req, res) => {
   try {
-    const { email, password, name, birthYear, appFor, socialProvider, socialId } = req.body;
+    const { email, password, confirmPassword, name, birthYear, appFor, socialProvider, socialId } = req.body;
+
+    if (password && confirmPassword !== undefined && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords don't match"
+      });
+    }
 
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });

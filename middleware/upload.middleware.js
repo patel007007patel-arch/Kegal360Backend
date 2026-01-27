@@ -8,11 +8,12 @@ const __dirname = path.dirname(__filename);
 
 // Ensure upload directories exist
 const uploadDir = path.join(__dirname, '../uploads');
-const videoDir = path.join(uploadDir, 'videos');
+const assetsDir = path.join(uploadDir, 'assets');
+const videoDir = path.join(assetsDir, 'videos');
 const imageDir = path.join(uploadDir, 'images');
-const thumbnailDir = path.join(uploadDir, 'thumbnails');
+const thumbnailDir = path.join(assetsDir, 'thumbnails');
 
-[uploadDir, videoDir, imageDir, thumbnailDir].forEach(dir => {
+[uploadDir, assetsDir, videoDir, imageDir, thumbnailDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -100,4 +101,28 @@ export const uploadThumbnail = multer({
   fileFilter
 });
 
-export default { uploadVideo, uploadImage, uploadThumbnail };
+// Combined storage for video + thumbnail in one request (avoids consuming body twice)
+const videoAndThumbnailStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = file.fieldname === 'video' ? videoDir : thumbnailDir;
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const prefix = file.fieldname === 'video' ? 'video-' : 'thumbnail-';
+    cb(null, prefix + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+export const uploadVideoAndThumbnail = multer({
+  storage: videoAndThumbnailStorage,
+  limits: {
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024 // 100MB (thumbnail is still validated by fileFilter)
+  },
+  fileFilter
+}).fields([
+  { name: 'video', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 }
+]);
+
+export default { uploadVideo, uploadImage, uploadThumbnail, uploadVideoAndThumbnail };
