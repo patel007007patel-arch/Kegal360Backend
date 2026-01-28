@@ -1,7 +1,5 @@
 import User from '../../models/User.model.js';
 import { generateToken } from '../../utils/jwt.js';
-import Question from '../../models/Question.model.js';
-import UserAnswer from '../../models/UserAnswer.model.js';
 
 export const register = async (req, res) => {
   try {
@@ -51,9 +49,6 @@ export const register = async (req, res) => {
     
     await user.save();
 
-    // Get onboarding questions
-    const questions = await Question.find({ category: 'onboarding' }).sort({ order: 1 });
-
     const token = generateToken(user._id, user.role);
 
     res.status(201).json({
@@ -67,8 +62,7 @@ export const register = async (req, res) => {
           onboardingCompleted: user.onboardingCompleted,
           partnerCode: user.partnerCode
         },
-        token,
-        questions
+        token
       }
     });
   } catch (error) {

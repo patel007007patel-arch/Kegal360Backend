@@ -1,13 +1,13 @@
 import Log from '../../models/Log.model.js';
 import Cycle from '../../models/Cycle.model.js';
 import User from '../../models/User.model.js';
+import { getEffectiveCycleLength } from '../../services/cycleCalculation.service.js';
 
 export const exportCycleData = async (req, res) => {
   try {
     const userId = req.user._id;
     const { period } = req.query;
 
-    // Get cycle insights data (similar to cycleInsights controller)
     const user = await User.findById(userId);
     
     let dateRange = {};
@@ -46,8 +46,8 @@ export const exportCycleData = async (req, res) => {
 
     const cycleLengths = cycles.map(c => c.cycleLength).filter(Boolean);
     const periodLengths = cycles.map(c => c.periodLength).filter(Boolean);
+    const effectiveLen = user ? getEffectiveCycleLength(user) : null;
 
-    // Format for export (PDF/CSV ready)
     const exportData = {
       exportedOn: new Date().toLocaleDateString('en-US', { 
         year: 'numeric', 
@@ -56,12 +56,18 @@ export const exportCycleData = async (req, res) => {
       }),
       period: period || `${dateRange.startDate.toLocaleDateString()} - ${dateRange.endDate.toLocaleDateString()}`,
       summary: {
-        averageCycleLength: cycleLengths.length > 0 ?
-          Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length) : null,
-        shortestCycle: cycleLengths.length > 0 ? Math.min(...cycleLengths) : null,
-        longestCycle: cycleLengths.length > 0 ? Math.max(...cycleLengths) : null,
-        averagePeriodLength: periodLengths.length > 0 ?
-          Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length) : null
+        averageCycleLength: cycleLengths.length > 0
+          ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length)
+          : effectiveLen,
+        shortestCycle: cycleLengths.length > 0
+          ? Math.min(...cycleLengths)
+          : (user?.cycleType === 'regular' ? user?.cycleLength : user?.cycleLengthRange?.min) ?? null,
+        longestCycle: cycleLengths.length > 0
+          ? Math.max(...cycleLengths)
+          : (user?.cycleType === 'regular' ? user?.cycleLength : user?.cycleLengthRange?.max) ?? null,
+        averagePeriodLength: periodLengths.length > 0
+          ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
+          : (user?.periodLength ?? null)
       },
       cycleList: cycles.map(cycle => ({
         month: new Date(cycle.startDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),

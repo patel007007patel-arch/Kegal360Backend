@@ -1,73 +1,10 @@
 import User from '../models/User.model.js';
-import Question from '../models/Question.model.js';
 import Log from '../models/Log.model.js';
 import Cycle from '../models/Cycle.model.js';
 import Subscription from '../models/Subscription.model.js';
 import Video from '../models/Video.model.js';
 import GiftSubscription from '../models/GiftSubscription.model.js';
 import Notification from '../models/Notification.model.js';
-
-const SEED_QUESTIONS = [
-  {
-    question: "What should we call you?",
-    type: "text",
-    order: 1,
-    isRequired: true,
-    category: "onboarding"
-  },
-  {
-    question: "What year were you born?",
-    type: "number",
-    order: 2,
-    isRequired: true,
-    category: "onboarding",
-    validation: {
-      min: 1900,
-      max: new Date().getFullYear()
-    }
-  },
-  {
-    question: "Who is the app for?",
-    type: "select",
-    options: ["Use for myself", "Partner's cycle"],
-    order: 3,
-    isRequired: true,
-    category: "onboarding"
-  },
-  {
-    question: "What best describes your cycle?",
-    type: "select",
-    options: ["Regular", "Irregular", "Absent"],
-    order: 4,
-    isRequired: true,
-    category: "cycle_setup"
-  },
-  {
-    question: "Generally, how long are your cycles?",
-    type: "number",
-    order: 5,
-    isRequired: false,
-    category: "cycle_setup",
-    validation: {
-      min: 21,
-      max: 45
-    }
-  },
-  {
-    question: "When did your last period start?",
-    type: "date",
-    order: 6,
-    isRequired: false,
-    category: "cycle_setup"
-  },
-  {
-    question: "When did your last period end?",
-    type: "date",
-    order: 7,
-    isRequired: false,
-    category: "cycle_setup"
-  }
-];
 
 const ADMIN_EMAIL = 'admin@k360.com';
 const ADMIN_PASSWORD = 'admin123';
@@ -84,13 +21,13 @@ function getBaseUrl() {
 }
 
 /**
- * Run seed: questions, admin, demo users, videos, logs, cycles, subscriptions, gifts, notifications.
- * Returns { success, message, seeded: { questions, admin, users, videos, logs, cycles, subscriptions, gifts, notifications } }.
+ * Run seed: admin, demo users, videos, logs, cycles, subscriptions, gifts, notifications.
+ * Onboarding data is stored in User model only (no Question model).
+ * Returns { success, message, seeded: { admin, users, videos, logs, cycles, subscriptions, gifts, notifications } }.
  */
 export async function runSeed(req, res) {
   try {
     const seeded = {
-      questions: 0,
       admin: false,
       users: 0,
       videos: 0,
@@ -100,11 +37,6 @@ export async function runSeed(req, res) {
       gifts: 0,
       notifications: 0
     };
-
-    // —— Questions ——
-    await Question.deleteMany({});
-    const insertedQuestions = await Question.insertMany(SEED_QUESTIONS);
-    seeded.questions = insertedQuestions.length;
 
     // —— Admin (plain password; User pre-save will hash) ——
     let admin = await User.findOne({ email: ADMIN_EMAIL });

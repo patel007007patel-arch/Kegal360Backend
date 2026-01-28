@@ -45,22 +45,26 @@ export const getHomeData = async (req, res) => {
 
     // Wellness mode: cycle tracking off or cycleType absent
     if (!user.trackCycle || user.cycleType === 'absent') {
-      const YogaSession = (await import('../../models/YogaSession.model.js')).default;
-      const MeditationSession = (await import('../../models/MeditationSession.model.js')).default;
+      const UserProgress = (await import('../../models/UserProgress.model.js')).default;
       const weekStart = new Date(today);
       weekStart.setDate(weekStart.getDate() - 7);
       weekStart.setHours(0, 0, 0, 0);
 
-      const [yogaSessions, yogaDocs, meditationDocs] = await Promise.all([
-        YogaSession.countDocuments({ user: userId, date: { $gte: weekStart } }),
-        YogaSession.find({ user: userId, date: { $gte: weekStart } }).select('date').lean(),
-        MeditationSession.find({ user: userId, date: { $gte: weekStart } }).select('date').lean()
-      ]);
+      // Get all sessions started in the last week
+      const progressDocs = await UserProgress.find({
+        user: userId,
+        sessionStartedAt: { $gte: weekStart }
+      }).select('sessionStartedAt sessionCompletedAt').lean();
 
       const activeDaySet = new Set();
-      [...yogaDocs, ...meditationDocs].forEach((s) => activeDaySet.add(new Date(s.date).toDateString()));
+      progressDocs.forEach((p) => {
+        if (p.sessionStartedAt) {
+          activeDaySet.add(new Date(p.sessionStartedAt).toDateString());
+        }
+      });
       const activeDays = activeDaySet.size;
       const restDays = Math.max(0, 7 - activeDays);
+      const sessionsThisWeek = progressDocs.length;
 
       return res.json({
         success: true,
@@ -72,7 +76,7 @@ export const getHomeData = async (req, res) => {
           phaseDisplayLabel: 'Cycle tracking off Wellness Mode',
           cycleInfo: null,
           wellnessStats: {
-            yogaSessionsThisWeek: yogaSessions,
+            yogaSessionsThisWeek: sessionsThisWeek,
             activeDays,
             restDays
           }
@@ -101,10 +105,10 @@ export const getHomeData = async (req, res) => {
         success: true,
         data: {
           ...baseResponse,
-          mode: 'irregular',
-          phaseName: 'Irregular Mode',
-          phase: 'irregular',
-          cycleInfo: {
+        mode: 'irregular',
+        phaseName: 'Irregular Mode',
+        phase: 'irregular',
+        cycleInfo: {
             cycleRange: cycleRange || null,
             lastPeriod: lastPeriodDaysAgo != null ? `${lastPeriodDaysAgo} days ago` : null,
             averageCycle: avgCycle != null ? avgCycle : null

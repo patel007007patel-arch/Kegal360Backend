@@ -3,8 +3,9 @@ import Notification from '../models/Notification.model.js';
 import User from '../models/User.model.js';
 import Log from '../models/Log.model.js';
 import Cycle from '../models/Cycle.model.js';
+import { getEffectiveCycleLength } from '../services/cycleCalculation.service.js';
 
-// Schedule period reminders
+// Schedule period reminders (uses effective cycle length: regular → cycleLength, irregular → midpoint of cycleLengthRange)
 export const schedulePeriodReminders = () => {
   // Run daily at 9 AM
   cron.schedule('0 9 * * *', async () => {
@@ -15,26 +16,25 @@ export const schedulePeriodReminders = () => {
       });
 
       for (const user of users) {
-        // Calculate next period date
-        if (user.lastPeriodStart && user.cycleLength) {
-          const lastPeriod = new Date(user.lastPeriodStart);
-          const nextPeriod = new Date(lastPeriod);
-          nextPeriod.setDate(nextPeriod.getDate() + user.cycleLength);
+        if (!user.lastPeriodStart) continue;
+        const cycleLength = getEffectiveCycleLength(user);
+        const lastPeriod = new Date(user.lastPeriodStart);
+        const nextPeriod = new Date(lastPeriod);
+        nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
 
-          const today = new Date();
-          const daysUntil = Math.ceil((nextPeriod - today) / (1000 * 60 * 60 * 24));
+        const today = new Date();
+        const daysUntil = Math.ceil((nextPeriod - today) / (1000 * 60 * 60 * 24));
 
-          // Send reminder 1 day before
-          if (daysUntil === 1) {
-            await Notification.create({
-              user: user._id,
-              type: 'period_reminder',
-              title: 'Period Reminder',
-              message: `Your period is expected to start tomorrow. Don't forget to log it!`,
-              scheduledFor: new Date(),
-              sentAt: new Date()
-            });
-          }
+        // Send reminder 1 day before
+        if (daysUntil === 1) {
+          await Notification.create({
+            user: user._id,
+            type: 'period_reminder',
+            title: 'Period Reminder',
+            message: `Your period is expected to start tomorrow. Don't forget to log it!`,
+            scheduledFor: new Date(),
+            sentAt: new Date()
+          });
         }
       }
     } catch (error) {

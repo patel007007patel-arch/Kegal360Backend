@@ -15,12 +15,11 @@ import subscriptionRoutes from './routes/subscription.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import partnerRoutes from './routes/partner.routes.js';
-import questionRoutes from './routes/question.routes.js';
-import yogaRoutes from './routes/yoga.routes.js';
-import meditationRoutes from './routes/meditation.routes.js';
+import sessionRoutes from './routes/session.routes.js';
+import progressRoutes from './routes/progress.routes.js';
+import favoriteRoutes from './routes/favorite.routes.js';
 import insightsRoutes from './routes/insights.routes.js';
 import customLogRoutes from './routes/customLog.routes.js';
-import giftRoutes from './routes/gift.routes.js';
 import seedRoutes from './routes/seed.routes.js';
 
 // Import notification scheduler
@@ -70,12 +69,12 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/partners', partnerRoutes);
-app.use('/api/questions', questionRoutes);
-app.use('/api/yoga', yogaRoutes);
-app.use('/api/meditation', meditationRoutes);
+// Unified session system
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/progress', progressRoutes);
+app.use('/api/favorites', favoriteRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/custom-logs', customLogRoutes);
-app.use('/api/gifts', giftRoutes);
 app.use('/api/seed', seedRoutes);
 
 // Health check
@@ -104,11 +103,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler (include path for debugging)
 app.use((req, res) => {
+  console.warn(`⚠️ 404: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
-    message: 'Route not found'
+    message: 'Route not found',
+    path: req.originalUrl
   });
 });
 

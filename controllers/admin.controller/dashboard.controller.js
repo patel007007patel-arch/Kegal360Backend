@@ -5,17 +5,26 @@ import Subscription from '../../models/Subscription.model.js';
 import Video from '../../models/Video.model.js';
 import Notification from '../../models/Notification.model.js';
 import GiftSubscription from '../../models/GiftSubscription.model.js';
+import Session from '../../models/Session.model.js';
+import Step from '../../models/Step.model.js';
+import Sequence from '../../models/Sequence.model.js';
+import Media from '../../models/Media.model.js';
 
 export const getDashboardStats = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const activeUsers = await User.countDocuments({ isActive: true });
-    const premiumUsers = await Subscription.countDocuments({ isActive: true });
+    const totalSubscriptions = await Subscription.countDocuments();
+    const activeSubscriptions = await Subscription.countDocuments({ isActive: true });
     const totalLogs = await Log.countDocuments();
     const totalCycles = await Cycle.countDocuments();
     const totalVideos = await Video.countDocuments();
     const totalNotifications = await Notification.countDocuments();
     const totalGifts = await GiftSubscription.countDocuments();
+    const totalSessions = await Session.countDocuments();
+    const totalSteps = await Step.countDocuments();
+    const totalSequences = await Sequence.countDocuments();
+    const totalMedia = await Media.countDocuments();
 
     // Recent users (last 30 days)
     const thirtyDaysAgo = new Date();
@@ -109,13 +118,18 @@ export const getDashboardStats = async (req, res) => {
         stats: {
           totalUsers,
           activeUsers,
-          premiumUsers,
+          totalSubscriptions,
+          activeSubscriptions,
           totalLogs,
           totalCycles,
           recentUsers,
           totalVideos,
           totalNotifications,
-          totalGifts
+          totalGifts,
+          totalSessions,
+          totalSteps,
+          totalSequences,
+          totalMedia
         },
         charts: {
           usersPerDay,

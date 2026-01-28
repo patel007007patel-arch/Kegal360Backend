@@ -4,26 +4,81 @@ import User from '../../models/User.model.js';
 
 export const getVideos = async (req, res) => {
   try {
-    const { type, phase, category, isPremium } = req.query;
+    const {
+      type,
+      phase,
+      category,
+      isPremium,
+      search,
+      q,
+      sort,
+      equipment,
+      minDuration,
+      maxDuration,
+      benefit,
+      instructor
+    } = req.query;
     const userId = req.user._id;
 
     let query = { isActive: true };
 
+    // Type: yoga | meditation | breathwork
     if (type) query.type = type;
+    // Phase: menstrual | follicular | ovulation | luteal | all
     if (phase && phase !== 'all') query.phase = phase;
+    // Category: menstrual | follicular | ovulation | luteal | general
     if (category) query.category = category;
     if (isPremium !== undefined) query.isPremium = isPremium === 'true';
+    if (equipment) query.equipment = new RegExp(equipment, 'i');
+
+    // Duration range (seconds)
+    if (minDuration != null && minDuration !== '') {
+      const n = parseInt(minDuration, 10);
+      if (!isNaN(n)) query.duration = { ...(query.duration || {}), $gte: n };
+    }
+    if (maxDuration != null && maxDuration !== '') {
+      const n = parseInt(maxDuration, 10);
+      if (!isNaN(n)) query.duration = { ...(query.duration || {}), $lte: n };
+    }
+
+    // Benefit: videos whose benefits array contains this (case-insensitive)
+    if (benefit && benefit.trim()) {
+      query.benefits = new RegExp(benefit.trim(), 'i');
+    }
+
+    // Instructor: match instructor.name
+    if (instructor && instructor.trim()) {
+      query['instructor.name'] = new RegExp(instructor.trim(), 'i');
+    }
+
+    const searchTerm = search || q;
+    if (searchTerm && searchTerm.trim()) {
+      query.$or = [
+        { title: new RegExp(searchTerm.trim(), 'i') },
+        { description: new RegExp(searchTerm.trim(), 'i') }
+      ];
+    }
 
     // Check user subscription for premium content
     const user = await User.findById(userId);
-    const hasPremiumAccess = user.subscription?.isActive && 
+    const hasPremiumAccess = user.subscription?.isActive &&
                             (user.subscription.plan === 'monthly' || user.subscription.plan === 'yearly');
 
     if (!hasPremiumAccess) {
       query.isPremium = false; // Only show free content
     }
 
-    const videos = await Video.find(query).sort({ createdAt: -1 });
+    const sortMap = {
+      newest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      durationAsc: { duration: 1 },
+      durationDesc: { duration: -1 },
+      views: { views: -1 },
+      title: { title: 1 }
+    };
+    const sortBy = sortMap[sort] || { createdAt: -1 };
+
+    const videos = await Video.find(query).sort(sortBy);
 
     // Get progress for each video
     const videoIds = videos.map(v => v._id);

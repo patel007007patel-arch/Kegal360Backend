@@ -1,0 +1,841 @@
+{
+  "info": {
+    "name": "Kegal360 User API",
+    "description": "User-facing APIs. Set {{token}} after login for protected routes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\",\n  \"confirmPassword\": \"password123\",\n  \"name\": \"Test User\",\n  \"birthYear\": 1995,\n  \"appFor\": \"myself\",\n  \"socialProvider\": \"email\",\n  \"socialId\": \"\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "**Required:** email, password (or omit for social). **Optional:** confirmPassword (must match password), name, birthYear, appFor (myself|partner), socialProvider (email|google|apple), socialId (for google/apple)."
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "**Required:** email, password. Returns user + token; set {{token}} to data.token for other requests."
+          }
+        },
+        {
+          "name": "Social Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"google\",\n  \"providerId\": \"google-oauth-id-123\",\n  \"email\": \"user@gmail.com\",\n  \"name\": \"User Name\",\n  \"profilePicture\": \"https://lh3.googleusercontent.com/...\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/social-login",
+            "description": "**Required:** provider (google|apple), providerId, email. **Optional:** name, profilePicture. Creates or logs in user; returns user + token."
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/forgot-password"
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"purpose\": \"forgot_password\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/resend-otp",
+            "description": "**Required:** email. **Optional:** purpose = forgot_password | email_verification (default: forgot_password). Rate-limited (~60s)."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/reset-password"
+          }
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Complete Onboarding",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ethan\",\n  \"birthYear\": 2007,\n  \"appFor\": \"myself\",\n  \"trackCycle\": true,\n  \"cycleType\": \"regular\",\n  \"cycleLength\": 28,\n  \"periodLength\": 5,\n  \"lastPeriodStart\": \"2025-10-10\",\n  \"lastPeriodEnd\": \"2025-10-14\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users/onboarding/complete",
+            "description": "**All fields optional** (app sends answers from onboarding screens).\n\n**Screen 1: Name**\n- `name` (string): User's name/nickname\n\n**Screen 2: Birth Year**\n- `birthYear` (integer): Year born (e.g. 2007)\n\n**Screen 3: App For**\n- `appFor` (string): `myself` | `partner`\n\n**Screen 4: Track Cycle**\n- `trackCycle` (boolean): `true` = \"Personalize with in-app period calendar\", `false` = \"I prefer not to track my cycle\"\n\n**Screen 5: Cycle Type**\n- `cycleType` (string): `regular` | `irregular` | `absent`\n\n**Period Dates (Image 2):**\n- **Screen 1: Most Recent Period (single date)**\n  - `lastPeriodStart` (ISO date string, e.g. `2025-10-10`): If only this is sent, `lastPeriodEnd` is auto-calculated from `periodLength`\n- **Screen 2: Last Period Start & End (date range)**\n  - `lastPeriodStart` (ISO date string): Start date\n  - `lastPeriodEnd` (ISO date string): End date\n  - `periodLength` (integer, 1–14): Can be sent explicitly or derived from date range\n\n**Cycle Length (Image 2):**\n- **Screen 3: Regular Cycle (average days)**\n  - `cycleLength` (integer, 21–45): Average cycle length in days (e.g. 28)\n- **Screen 4: Irregular Cycle (range)**\n  - `cycleLengthRange` (object): `{ min: 24, max: 32 }` - min and max cycle length in days\n\n**Example for Regular:** `{ name, birthYear, appFor, trackCycle, cycleType: \"regular\", cycleLength: 28, periodLength: 5, lastPeriodStart, lastPeriodEnd }`\n**Example for Irregular:** `{ name, birthYear, appFor, trackCycle, cycleType: \"irregular\", cycleLengthRange: { min: 24, max: 32 }, periodLength: 5, lastPeriodStart, lastPeriodEnd }`"
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ethan\",\n  \"birthYear\": 1998,\n  \"settings\": {\n    \"pushNotifications\": true,\n    \"darkTheme\": false,\n    \"emailUpdates\": false\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/users/profile",
+            "description": "**All optional.** name, birthYear, settings (object). settings can include: pushNotifications (boolean), darkTheme (boolean), emailUpdates (boolean). Only sent keys are updated; rest stay as-is."
+          }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/account"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cycles",
+      "item": [
+        {
+          "name": "Get Home",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/cycles/home"
+          }
+        },
+        {
+          "name": "Get Cycle Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/cycles/settings"
+          }
+        },
+        {
+          "name": "Update Cycle Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cycleType\": \"regular\",\n  \"trackCycle\": true,\n  \"cycleLength\": 28,\n  \"cycleLengthRange\": { \"min\": 24, \"max\": 32 },\n  \"periodLength\": 5,\n  \"lastPeriodStart\": \"2025-09-01\",\n  \"lastPeriodEnd\": \"2025-09-05\"\n}"
+            },
+            "url": "{{baseUrl}}/api/cycles/settings",
+            "description": "**All optional.** cycleType (regular|irregular|absent), trackCycle (boolean), cycleLength (21–45, for regular), cycleLengthRange { min, max } (for irregular; send null to clear), periodLength (1–14), lastPeriodStart, lastPeriodEnd (ISO date strings). If cycleType is absent, trackCycle is set to false."
+          }
+        },
+        {
+          "name": "Get Calendar Enhanced",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cycles/calendar/enhanced?month=9&year=2025&type=all&phase=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cycles", "calendar", "enhanced"],
+              "query": [
+                { "key": "month", "value": "9", "description": "Month (1–12). Omit for yearly view." },
+                { "key": "year", "value": "2025", "description": "Year (e.g. 2025). Required for monthly; use alone for yearly (all 12 months)." },
+                { "key": "type", "value": "all", "description": "Log fields to include: all | mood | flow | notes. Use for calendar tab (Mood/Flow/Notes)." },
+                { "key": "phase", "value": "all", "description": "Phase filter: all | menstrual | follicular | ovulation | luteal. menstrual = Period in DB." },
+                { "key": "partnerCode", "value": "", "disabled": true, "description": "Optional: Partner code (6 uppercase letters, e.g. ABCDEF). View partner's calendar if connected. Requires partner connection via /api/partners/connect." }
+              ]
+            },
+            "description": "**Monthly:** send month + year. **Yearly:** send only year (no month). Returns every day with predicted phase (phase, phaseName, isPeriod) and merged log data (mood, flow, notes, temperature). **Filters:** type = which log fields to return (all | mood | flow | notes); phase = filter logs by phase (all | menstrual | follicular | ovulation | luteal). **Partner View:** Add partnerCode query param to view partner's calendar (requires partner connection). Response includes data.partner { id, name, partnerCode } when viewing partner. Use for calendar grid and phase highlighting."
+          }
+        },
+        {
+          "name": "Get Calendar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/cycles/calendar?month=9&year=2025&type=all&phase=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "cycles", "calendar"],
+              "query": [
+                { "key": "month", "value": "9", "description": "Month (1–12)." },
+                { "key": "year", "value": "2025", "description": "Year (e.g. 2025)." },
+                { "key": "type", "value": "all", "description": "Log fields: all | mood | flow | notes." },
+                { "key": "phase", "value": "all", "description": "Phase filter: all | menstrual | follicular | ovulation | luteal." }
+              ]
+            },
+            "description": "Original calendar (only days that have a log). **Filters:** month, year (required); type = mood | flow | notes | all; phase = all | menstrual | follicular | ovulation | luteal. Prefer Get Calendar Enhanced for full month grid with predicted phases."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Logs",
+      "item": [
+        {
+          "name": "Create Log",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2025-09-12\",\n  \"flow\": \"medium\",\n  \"flowIntensity\": \"B\",\n  \"mood\": [\"calm\", \"energetic\"],\n  \"symptoms\": [\"cramps\", \"bloating\"],\n  \"phase\": \"follicular\",\n  \"temperature\": { \"value\": 97.5, \"unit\": \"fahrenheit\" },\n  \"notes\": \"Cramps in the morning\",\n  \"customLogs\": [\n    { \"logName\": \"Weight\", \"icon\": \"scale\", \"value\": \"60 kg\" }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/logs",
+            "description": "**Required:** date (ISO string). **Optional:** flow (light|medium|heavy|spotting), flowIntensity (A|B|C), mood[] (happy|energetic|calm|sleepy|anxious|sad|guilty|angry), symptoms[] (fine|headache|cramps|cravings|acne|nausea|backache|bloating), phase (period|follicular|ovulation|luteal|missed|late|unsure|clear), temperature { value, unit: celsius|fahrenheit }, notes, customLogs[] { logName, icon, value }. If a log exists for that date, it is updated."
+          }
+        },
+        {
+          "name": "+ Period Day (Mark as period)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2025-09-16\",\n  \"phase\": \"period\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logs",
+            "description": "Use this when user taps **+ Period Day** on the calendar.\n\n- Sets this date as a period day by saving a Log with `phase = period`.\n- Backend auto-syncs `User.lastPeriodStart`, `User.lastPeriodEnd`, and `User.periodLength` based on period logs, so predictions/calendar update."
+          }
+        },
+        {
+          "name": "- Period Day (Remove period)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2025-09-16\",\n  \"phase\": \"clear\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logs",
+            "description": "Use this when user taps **- Period Day** on the calendar.\n\n- Removes this date from period days by updating the Log phase to `clear` (or you can set another phase like `follicular`).\n- Backend auto-syncs `User.lastPeriodStart`, `User.lastPeriodEnd`, and `User.periodLength` based on remaining period logs."
+          }
+        },
+        {
+          "name": "Get Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/logs?month=9&year=2025&phase=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "logs"],
+              "query": [
+                { "key": "month", "value": "9", "description": "Month (1–12). Use with year for a month range." },
+                { "key": "year", "value": "2025", "description": "Year. Use with month, or with startDate/endDate." },
+                { "key": "startDate", "value": "2025-09-01", "disabled": true, "description": "Start date (YYYY-MM-DD). Use with endDate for custom range." },
+                { "key": "endDate", "value": "2025-09-30", "disabled": true, "description": "End date (YYYY-MM-DD). Use with startDate." },
+                { "key": "phase", "value": "", "disabled": true, "description": "Filter by log phase: period | follicular | ovulation | luteal | missed | late | unsure | clear." },
+                { "key": "partnerCode", "value": "", "disabled": true, "description": "Optional: Partner code (6 uppercase letters). View partner's logs if connected." }
+              ]
+            },
+            "description": "List logs. **Range:** use month + year, OR startDate + endDate (YYYY-MM-DD). **Filter:** phase = period | follicular | ovulation | luteal | missed | late | unsure | clear. **Partner View:** Add partnerCode query param to view partner's logs (requires partner connection). Response includes data.partner { id, name, partnerCode } when viewing partner. Returns data.logs[] and data.count."
+          }
+        },
+        {
+          "name": "Get Log By Date",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/logs/by-date?date=2025-09-12",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "logs", "by-date"],
+              "query": [
+                { "key": "date", "value": "2025-09-12", "description": "Single day (YYYY-MM-DD). Returns the log for this date or null." },
+                { "key": "partnerCode", "value": "", "disabled": true, "description": "Optional: Partner code (6 uppercase letters). View partner's log for this date if connected." }
+              ]
+            },
+            "description": "Get the log for one day (e.g. when user taps a date on the calendar). **Query:** date = YYYY-MM-DD (required). **Partner View:** Add partnerCode query param to view partner's log for this date (requires partner connection). Response includes data.partner { id, name, partnerCode } when viewing partner. Returns data.log (object or null) with mood, flow, notes, temperature, etc."
+          }
+        },
+        {
+          "name": "Get Log By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/logs/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "logs", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            },
+            "description": "Get a single log by its _id (from Create Log or Get Logs response). For calendar selected-date detail, use **Get Log By Date** with query date=YYYY-MM-DD instead."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Videos",
+      "item": [
+        {
+          "name": "Get Videos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/videos?type=yoga&sort=newest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "videos"],
+              "query": [
+                { "key": "type", "value": "yoga", "description": "yoga | meditation | breathwork" },
+                { "key": "phase", "value": "", "description": "menstrual | follicular | ovulation | luteal | all", "disabled": true },
+                { "key": "category", "value": "", "description": "menstrual | follicular | ovulation | luteal | general", "disabled": true },
+                { "key": "isPremium", "value": "", "description": "true | false", "disabled": true },
+                { "key": "equipment", "value": "", "description": "filter by equipment (partial match)", "disabled": true },
+                { "key": "minDuration", "value": "", "description": "min duration in seconds", "disabled": true },
+                { "key": "maxDuration", "value": "", "description": "max duration in seconds", "disabled": true },
+                { "key": "benefit", "value": "", "description": "benefits array contains", "disabled": true },
+                { "key": "instructor", "value": "", "description": "instructor name (partial match)", "disabled": true },
+                { "key": "search", "value": "", "description": "search title/description", "disabled": true },
+                { "key": "sort", "value": "newest", "description": "newest | oldest | durationAsc | durationDesc | views | title" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Video By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/videos/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "videos", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Update Progress",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoId\": \"<video_id>\",\n  \"currentPosition\": 120,\n  \"completed\": false,\n  \"watchedDuration\": 120,\n  \"currentPose\": \"downward_dog\"\n}"
+            },
+            "url": "{{baseUrl}}/api/videos/progress",
+            "description": "**Required:** videoId. **Optional:** currentPosition (seconds), completed (boolean), watchedDuration (seconds), currentPose (string). Upserts progress for the authenticated user and video."
+          }
+        },
+        {
+          "name": "Get Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/videos/progress/:videoId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "videos", "progress", ":videoId"],
+              "variable": [{ "key": "videoId", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "item": [
+        {
+          "name": "Create Subscription",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"monthly\",\n  \"paymentId\": \"pay_xxx\",\n  \"paymentMethod\": \"card\"\n}"
+            },
+            "url": "{{baseUrl}}/api/subscriptions",
+            "description": "**Required:** plan (monthly|yearly). **Optional:** paymentId, paymentMethod. Creates or updates the user's subscription (first is trial)."
+          }
+        },
+        {
+          "name": "Get Subscription",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/subscriptions"
+          }
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/subscriptions/cancel"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partners",
+      "item": [
+        {
+          "name": "View Partner By Code",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/partners/view?code=ABCDEF",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "partners", "view"],
+              "query": [{ "key": "code", "value": "ABCDEF" }]
+            }
+          }
+        },
+        {
+          "name": "Get My Partner Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/partners/code"
+          }
+        },
+        {
+          "name": "Regenerate Share Code",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/partners/code/regenerate"
+          }
+        },
+        {
+          "name": "Connect Partner",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"ABCDEF\"\n}"
+            },
+            "url": "{{baseUrl}}/api/partners/connect",
+            "description": "**Required:** code (string). Partner share code from the other user. Links this user to the code owner for shared data."
+          }
+        },
+        {
+          "name": "Get Shared Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/partners/shared"
+          }
+        },
+        {
+          "name": "Gift Subscription (pay for code owner)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"ABCDEF\",\n  \"plan\": \"monthly\",\n  \"paymentId\": \"pay_xxx\",\n  \"paymentMethod\": \"card\"\n}"
+            },
+            "url": "{{baseUrl}}/api/partners/gift-subscription",
+            "description": "**Required:** code (partner code). **Required:** plan (monthly|yearly). **Optional:** paymentId, paymentMethod. When user opens partner dashboard using partner code and clicks 'Gift Subscription' + pays, the subscription is applied directly to the user who owns this code. No redeem step needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sessions",
+      "item": [
+        {
+          "name": "Get Sessions By Phase",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/phase?phase=menstrual",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "phase"],
+              "query": [
+                { "key": "phase", "value": "menstrual", "description": "menstrual | follicular | ovulation | luteal" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get All Sessions",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/all?sessionType=yoga&phase=menstrual&search=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "all"],
+              "query": [
+                { "key": "sessionType", "value": "yoga", "description": "yoga | workout | meditation | breathwork", "disabled": true },
+                { "key": "phase", "value": "menstrual", "description": "menstrual | follicular | ovulation | luteal", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Session Details",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            },
+            "description": "Returns session with steps, user progress (if authenticated), and favorite status."
+          }
+        },
+        {
+          "name": "Get Steps By Session",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/:sessionId/steps",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", ":sessionId", "steps"],
+              "variable": [{ "key": "sessionId", "value": "" }]
+            },
+            "description": "Returns all steps for a session with completion status (if authenticated)."
+          }
+        },
+        {
+          "name": "Get Step By ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sessions/steps/:stepId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "sessions", "steps", ":stepId"],
+              "variable": [{ "key": "stepId", "value": "" }]
+            },
+            "description": "Returns a single step with session info and completion status (if authenticated)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Progress",
+      "item": [
+        {
+          "name": "Start Session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"<session_id>\"\n}"
+            },
+            "url": "{{baseUrl}}/api/progress/start",
+            "description": "**Required:** sessionId. Starts tracking progress for a session."
+          }
+        },
+        {
+          "name": "Complete Step",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"<session_id>\",\n  \"stepId\": \"<step_id>\",\n  \"timeSpent\": 30\n}"
+            },
+            "url": "{{baseUrl}}/api/progress/step/complete",
+            "description": "**Required:** sessionId, stepId. **Optional:** timeSpent (seconds). Marks a step as completed."
+          }
+        },
+        {
+          "name": "Complete Session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"<session_id>\"\n}"
+            },
+            "url": "{{baseUrl}}/api/progress/complete",
+            "description": "**Required:** sessionId. Marks the entire session as completed."
+          }
+        },
+        {
+          "name": "Get Session Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/progress/session/:sessionId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "progress", "session", ":sessionId"],
+              "variable": [{ "key": "sessionId", "value": "" }]
+            },
+            "description": "Returns progress for a specific session including completed steps."
+          }
+        },
+        {
+          "name": "Get All User Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/progress/all?sessionType=yoga&completed=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "progress", "all"],
+              "query": [
+                { "key": "sessionType", "value": "yoga", "description": "yoga | workout | meditation | breathwork", "disabled": true },
+                { "key": "completed", "value": "true", "description": "true | false", "disabled": true }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Favorites",
+      "item": [
+        {
+          "name": "Get Favorites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/favorites?sessionType=yoga",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "favorites"],
+              "query": [
+                { "key": "sessionType", "value": "yoga", "description": "yoga | workout | meditation | breathwork", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Favorite",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"<session_id>\"\n}"
+            },
+            "url": "{{baseUrl}}/api/favorites",
+            "description": "**Required:** sessionId. Adds a session to favorites."
+          }
+        },
+        {
+          "name": "Remove Favorite",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/favorites/:sessionId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "favorites", ":sessionId"],
+              "variable": [{ "key": "sessionId", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Insights",
+      "item": [
+        {
+          "name": "Get Cycle Insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/insights/cycle",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "insights", "cycle"],
+              "query": [
+                { "key": "period", "value": "", "description": "Example: Jan 2024 - Dec 2024", "disabled": true },
+                { "key": "startDate", "value": "", "disabled": true },
+                { "key": "endDate", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Session Insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/insights/sessions?month=&year=&sessionType=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "insights", "sessions"],
+              "query": [
+                { "key": "month", "value": "", "description": "1-12", "disabled": true },
+                { "key": "year", "value": "", "description": "e.g. 2025", "disabled": true },
+                { "key": "sessionType", "value": "", "description": "yoga | workout | meditation | breathwork", "disabled": true }
+              ]
+            },
+            "description": "Returns session insights: total sessions, minutes, completed sessions, streak."
+          }
+        },
+        {
+          "name": "Export Cycle Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/insights/cycle/export",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "insights", "cycle", "export"],
+              "query": [{ "key": "period", "value": "", "disabled": true }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Custom Logs",
+      "item": [
+        {
+          "name": "Create Custom Log",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Weight\",\n  \"icon\": \"scale\",\n  \"icons\": [\"scale\", \"heart\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/custom-logs",
+            "description": "**Required:** name (string). **Optional:** icon (string), icons (array of strings). Use name/icon/icons per API; do not use logName or value."
+          }
+        },
+        {
+          "name": "Get Custom Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/custom-logs"
+          }
+        },
+        {
+          "name": "Get Custom Log By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/custom-logs/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "custom-logs", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Update Custom Log",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Weight\",\n  \"icon\": \"scale\",\n  \"icons\": [\"scale\"],\n  \"isActive\": true,\n  \"order\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/custom-logs/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "custom-logs", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            },
+            "description": "**All optional:** name, icon, icons (array), isActive (boolean), order (number). Path param :id is the custom log ID."
+          }
+        },
+        {
+          "name": "Delete Custom Log",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/custom-logs/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "custom-logs", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health"
+          }
+        }
+      ]
+    }
+  ]
+}

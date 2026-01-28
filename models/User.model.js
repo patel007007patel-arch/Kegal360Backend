@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['email', 'google', 'apple']
   },
-  // Onboarding questions answers
+  // Onboarding: all answers stored in User fields above (name, birthYear, appFor, trackCycle, cycleType, etc.)
   onboardingCompleted: {
     type: Boolean,
     default: false

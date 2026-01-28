@@ -1,11 +1,50 @@
 import Log from '../../models/Log.model.js';
+import User from '../../models/User.model.js';
+
+/**
+ * Helper function to resolve target user ID from partner code
+ * Returns { targetUserId, partnerInfo } or throws error
+ */
+const resolvePartnerAccess = async (currentUserId, partnerCode) => {
+  if (!partnerCode) {
+    return { targetUserId: currentUserId, partnerInfo: null };
+  }
+
+  // Find partner by code
+  const partner = await User.findOne({ partnerCode: partnerCode.toUpperCase() });
+  if (!partner) {
+    throw new Error('Invalid partner code');
+  }
+
+  // Check if current user has access to this partner
+  const currentUser = await User.findById(currentUserId);
+  const hasAccess = 
+    (currentUser.sharedBy && currentUser.sharedBy.toString() === partner._id.toString()) ||
+    (partner.sharedWith && partner.sharedWith.some(id => id.toString() === currentUserId.toString()));
+
+  if (!hasAccess && partner._id.toString() !== currentUserId.toString()) {
+    throw new Error('You do not have access to view this partner\'s logs');
+  }
+
+  return {
+    targetUserId: partner._id,
+    partnerInfo: {
+      id: partner._id,
+      name: partner.name,
+      partnerCode: partner.partnerCode
+    }
+  };
+};
 
 export const getLogs = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { startDate, endDate, phase, month, year } = req.query;
+    const currentUserId = req.user._id;
+    const { startDate, endDate, phase, month, year, partnerCode } = req.query;
 
-    let query = { user: userId };
+    // Resolve target user (self or partner)
+    const { targetUserId, partnerInfo } = await resolvePartnerAccess(currentUserId, partnerCode);
+
+    let query = { user: targetUserId };
 
     if (startDate && endDate) {
       query.date = {
@@ -46,6 +85,49 @@ export const getLogs = async (req, res) => {
   }
 };
 
+/** Get the single log for a given date (for calendar selected-date detail). */
+export const getLogByDate = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const { date, partnerCode } = req.query; // date=YYYY-MM-DD
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Query "date" is required (e.g. date=2025-09-12)'
+      });
+    }
+
+    // Resolve target user (self or partner)
+    const { targetUserId, partnerInfo } = await resolvePartnerAccess(currentUserId, partnerCode);
+
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const log = await Log.findOne({
+      user: targetUserId,
+      date: { $gte: dayStart, $lt: dayEnd }
+    }).lean();
+
+    res.json({
+      success: true,
+      data: {
+        log: log || null,
+        ...(partnerInfo && { partner: partnerInfo })
+      }
+    });
+  } catch (error) {
+    console.error('Get log by date error:', error);
+    const statusCode = error.message.includes('Invalid partner code') || error.message.includes('do not have access') ? 403 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Error fetching log by date',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 export const getLogById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -76,4 +158,4 @@ export const getLogById = async (req, res) => {
   }
 };
 
-export default { getLogs, getLogById };
+export default { getLogs, getLogById, getLogByDate };

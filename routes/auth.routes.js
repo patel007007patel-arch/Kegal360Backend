@@ -5,23 +5,18 @@ import socialLogin from '../controllers/auth.controller/socialLogin.controller.j
 import forgotPassword from '../controllers/auth.controller/forgotPassword.controller.js';
 import resendOtp from '../controllers/auth.controller/resendOtp.controller.js';
 import resetPassword from '../controllers/auth.controller/resetPassword.controller.js';
+import getMe from '../controllers/auth.controller/me.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { authRouteLogger, loginRequestLogger } from '../middleware/authDebug.middleware.js';
 
 const router = express.Router();
 
-// Log all auth route requests
-router.use((req, res, next) => {
-  console.log(`🔐 Auth Route: ${req.method} ${req.path}`);
-  next();
-});
+// Log all auth route requests (debug)
+router.use(authRouteLogger);
 
 // Public routes
 router.post('/register', register);
-router.post('/login', (req, res, next) => {
-  console.log('🔑 Login endpoint hit!');
-  console.log('📧 Request body:', { email: req.body.email, password: '***' });
-  login(req, res, next);
-});
+router.post('/login', loginRequestLogger, login);
 router.post('/social-login', socialLogin);
 
 // Forgot password (request OTP)
@@ -32,29 +27,6 @@ router.post('/resend-otp', resendOtp);
 router.post('/reset-password', resetPassword);
 
 // Protected route - get current user
-router.get('/me', authenticate, async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: {
-        user: {
-          id: req.user._id,
-          email: req.user.email,
-          name: req.user.name,
-          role: req.user.role,
-          onboardingCompleted: req.user.onboardingCompleted,
-          subscription: req.user.subscription,
-          settings: req.user.settings
-        }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching user',
-      error: error.message
-    });
-  }
-});
+router.get('/me', authenticate, getMe);
 
 export default router;

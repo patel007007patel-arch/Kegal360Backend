@@ -1,6 +1,7 @@
 /**
  * Cycle Calculation Service
- * Calculates cycle phases, predictions, and calendar data based on user's onboarding answers
+ * Uses User model data only: lastPeriodStart, cycleLength, periodLength, cycleType, cycleLengthRange.
+ * All values come from onboarding / cycle settings stored on User (no Question model).
  */
 
 export const calculateCurrentPhase = (lastPeriodStart, cycleLength = 28, periodLength = 5) => {
@@ -104,13 +105,20 @@ export const calculateFertileWindow = (lastPeriodStart, cycleLength = 28) => {
   };
 };
 
-export const generateCalendarData = (user, month, year) => {
-  if (!user.lastPeriodStart || !user.cycleLength) {
-    return {
-      calendar: [],
-      phases: {}
-    };
+/** Effective cycle length from User (same logic as calculateCyclePredictions). Export for scheduler/insights. */
+export const getEffectiveCycleLength = (user) => {
+  if (user.cycleType === 'regular') return user.cycleLength || 28;
+  if (user.cycleLengthRange?.min != null && user.cycleLengthRange?.max != null) {
+    return Math.round((user.cycleLengthRange.min + user.cycleLengthRange.max) / 2);
   }
+  return 28;
+};
+
+export const generateCalendarData = (user, month, year) => {
+  if (!user.lastPeriodStart) {
+    return { calendar: [], phases: {} };
+  }
+  const cycleLength = getEffectiveCycleLength(user);
 
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -123,29 +131,23 @@ export const generateCalendarData = (user, month, year) => {
     luteal: []
   };
 
-  // Calculate phase for each day in the month
+  const periodStart = new Date(user.lastPeriodStart);
+  periodStart.setHours(0, 0, 0, 0);
+  const periodLen = user.periodLength ?? 5;
+
   for (let day = 1; day <= endDate.getDate(); day++) {
     const currentDate = new Date(year, month - 1, day);
     currentDate.setHours(0, 0, 0, 0);
 
-    const periodStart = new Date(user.lastPeriodStart);
-    periodStart.setHours(0, 0, 0, 0);
-
-    // Calculate days since last period
     const daysSincePeriod = Math.floor((currentDate - periodStart) / (1000 * 60 * 60 * 24));
 
-    // Handle negative days (before last period)
     if (daysSincePeriod < 0) {
-      // Calculate from previous cycle
-      const cyclesBack = Math.ceil(Math.abs(daysSincePeriod) / user.cycleLength);
+      const cyclesBack = Math.ceil(Math.abs(daysSincePeriod) / cycleLength);
       const adjustedPeriodStart = new Date(periodStart);
-      adjustedPeriodStart.setDate(adjustedPeriodStart.getDate() - (cyclesBack * user.cycleLength));
-      
+      adjustedPeriodStart.setDate(adjustedPeriodStart.getDate() - (cyclesBack * cycleLength));
       const adjustedDays = Math.floor((currentDate - adjustedPeriodStart) / (1000 * 60 * 60 * 24));
-      const cycleDay = (adjustedDays % user.cycleLength) + 1;
-      
-      const periodLen = user.periodLength ?? 5;
-      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength, periodLen);
+      const cycleDay = (adjustedDays % cycleLength) + 1;
+      const phaseInfo = getPhaseFromCycleDay(cycleDay, cycleLength, periodLen);
       calendar.push({
         date: currentDate,
         day: day,
@@ -154,14 +156,10 @@ export const generateCalendarData = (user, month, year) => {
         phaseName: phaseInfo.phaseName,
         isPeriod: phaseInfo.isPeriod
       });
-
-      if (phases[phaseInfo.phase]) {
-        phases[phaseInfo.phase].push(day);
-      }
+      if (phases[phaseInfo.phase]) phases[phaseInfo.phase].push(day);
     } else {
-      const cycleDay = (daysSincePeriod % user.cycleLength) + 1;
-      const periodLen = user.periodLength ?? 5;
-      const phaseInfo = getPhaseFromCycleDay(cycleDay, user.cycleLength, periodLen);
+      const cycleDay = (daysSincePeriod % cycleLength) + 1;
+      const phaseInfo = getPhaseFromCycleDay(cycleDay, cycleLength, periodLen);
       
       calendar.push({
         date: currentDate,
@@ -263,6 +261,7 @@ export default {
   calculateNextPeriod,
   calculateNextOvulation,
   calculateFertileWindow,
+  getEffectiveCycleLength,
   generateCalendarData,
   calculateCyclePredictions
 };

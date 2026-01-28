@@ -130,8 +130,8 @@ export const getSharedData = async (req, res) => {
     }
 
     // Get partner's cycle data
-    const Log = (await import('../models/Log.model.js')).default;
-    const Cycle = (await import('../models/Cycle.model.js')).default;
+    const Log = (await import('../../models/Log.model.js')).default;
+    const Cycle = (await import('../../models/Cycle.model.js')).default;
     const { calculateCyclePredictions } = await import('../../services/cycleCalculation.service.js');
 
     const partnerLogs = await Log.find({ user: user.sharedBy._id })
@@ -191,15 +191,14 @@ export const viewPartnerByCode = async (req, res) => {
     }
 
     // Get partner's cycle data
-    const Log = (await import('../models/Log.model.js')).default;
-    const Cycle = (await import('../models/Cycle.model.js')).default;
+    const Log = (await import('../../models/Log.model.js')).default;
+    const Cycle = (await import('../../models/Cycle.model.js')).default;
     const { calculateCyclePredictions } = await import('../../services/cycleCalculation.service.js');
 
-    // Get recent logs (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const partnerLogs = await Log.find({ 
+    const partnerLogs = await Log.find({
       user: partner._id,
       date: { $gte: thirtyDaysAgo }
     })
@@ -210,18 +209,7 @@ export const viewPartnerByCode = async (req, res) => {
       .sort({ startDate: -1 })
       .limit(12);
 
-    // Calculate partner's current cycle info
     const partnerPredictions = calculateCyclePredictions(partner);
-
-    // Get pending gift subscriptions for this partner
-    const GiftSubscription = (await import('../models/GiftSubscription.model.js')).default;
-    const pendingGifts = await GiftSubscription.find({
-      recipient: partner._id,
-      status: 'pending'
-    })
-      .populate('sender', 'name')
-      .sort({ createdAt: -1 })
-      .limit(5);
 
     res.json({
       success: true,
@@ -230,7 +218,6 @@ export const viewPartnerByCode = async (req, res) => {
           id: partner._id,
           name: partner.name,
           partnerCode: partner.partnerCode
-          // Don't expose email for privacy
         },
         cycleInfo: {
           currentPhase: partnerPredictions.currentPhase,
@@ -239,13 +226,7 @@ export const viewPartnerByCode = async (req, res) => {
           nextOvulation: partnerPredictions.nextOvulation
         },
         logs: partnerLogs,
-        cycles: partnerCycles,
-        pendingGifts: pendingGifts.map(gift => ({
-          id: gift._id,
-          plan: gift.plan,
-          message: gift.message,
-          giftedAt: gift.giftedAt
-        }))
+        cycles: partnerCycles
       }
     });
   } catch (error) {
@@ -258,4 +239,111 @@ export const viewPartnerByCode = async (req, res) => {
   }
 };
 
-export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, viewPartnerByCode };
+/**
+ * Gift subscription: logged-in user pays and subscription is applied to the user who owns the code.
+ * Used when partner views by code and clicks "Gift subscription".
+ */
+export const purchaseSubscriptionForPartner = async (req, res) => {
+  try {
+    const { code, plan, paymentId, paymentMethod } = req.body;
+    const payerId = req.user._id;
+
+    if (!code || !plan) {
+      return res.status(400).json({
+        success: false,
+        message: 'Partner code and plan are required'
+      });
+    }
+
+    if (!['monthly', 'yearly'].includes(plan)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Plan must be monthly or yearly'
+      });
+    }
+
+    const recipient = await User.findOne({ partnerCode: (code || '').toString().toUpperCase() });
+    if (!recipient) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid partner code'
+      });
+    }
+
+    if (recipient._id.toString() === payerId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot purchase a subscription for yourself'
+      });
+    }
+
+    const Subscription = (await import('../../models/Subscription.model.js')).default;
+    const prices = { monthly: 4.99, yearly: 39.99 };
+
+    const startDate = new Date();
+    const endDate = new Date();
+    if (plan === 'yearly') {
+      endDate.setFullYear(endDate.getFullYear() + 1);
+    } else {
+      endDate.setMonth(endDate.getMonth() + 1);
+    }
+
+    let subscription = await Subscription.findOne({ user: recipient._id });
+    if (subscription) {
+      subscription.plan = plan;
+      subscription.price = prices[plan];
+      subscription.startDate = startDate;
+      subscription.endDate = endDate;
+      subscription.isActive = true;
+      subscription.isTrial = false;
+      subscription.trialEndDate = undefined;
+      subscription.paymentId = paymentId || subscription.paymentId;
+      subscription.paymentMethod = paymentMethod || subscription.paymentMethod;
+      subscription.autoRenew = false;
+      subscription.cancelledAt = null;
+    } else {
+      subscription = new Subscription({
+        user: recipient._id,
+        plan,
+        price: prices[plan],
+        startDate,
+        endDate,
+        isActive: true,
+        isTrial: false,
+        paymentId,
+        paymentMethod,
+        autoRenew: false
+      });
+    }
+    await subscription.save();
+
+    await User.findByIdAndUpdate(recipient._id, {
+      'subscription.plan': plan,
+      'subscription.startDate': startDate,
+      'subscription.endDate': endDate,
+      'subscription.isActive': true,
+      'subscription.paymentId': paymentId || undefined
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Subscription gifted successfully',
+      data: {
+        subscription: {
+          plan: subscription.plan,
+          endDate: subscription.endDate,
+          recipient: { id: recipient._id, name: recipient.name }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Purchase subscription for partner error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error purchasing subscription for partner',
+      error: error.message
+    });
+  }
+};
+
+export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, viewPartnerByCode, purchaseSubscriptionForPartner };

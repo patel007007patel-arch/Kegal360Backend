@@ -125,4 +125,33 @@ export const uploadVideoAndThumbnail = multer({
   { name: 'thumbnail', maxCount: 1 }
 ]);
 
+// Require multipart for upload routes to avoid "Unexpected end of form" from busboy
+export const requireMultipart = (req, res, next) => {
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+
+  if (!contentType.includes('multipart/form-data')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Upload requires multipart/form-data. Please select a file and try again.'
+    });
+  }
+
+  next();
+};
+
+// Normalize multer .fields() result to req.file + req.files for controllers expecting req.file
+export const normalizeVideoUpload = (req, res, next) => {
+  if (req.files?.video?.[0]) {
+    req.file = req.files.video[0];
+  }
+
+  // Ensure thumbnail key exists for controllers that expect it
+  if (!req.files?.thumbnail) {
+    req.files = req.files || {};
+    req.files.thumbnail = [];
+  }
+
+  next();
+};
+
 export default { uploadVideo, uploadImage, uploadThumbnail, uploadVideoAndThumbnail };

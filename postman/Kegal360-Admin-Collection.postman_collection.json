@@ -1,0 +1,927 @@
+{
+  "info": {
+    "name": "Kegal360 Admin API",
+    "description": "Complete admin-only endpoints. Use an admin user token in Authorization header.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/dashboard/stats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile & Settings",
+      "item": [
+        {
+          "name": "Get Admin Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/profile",
+            "description": "Get current admin's profile information (email, name, role)."
+          }
+        },
+        {
+          "name": "Update Admin Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin Name\",\n  \"email\": \"admin@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/profile",
+            "description": "Update admin profile (name, email). **All fields optional.** Email must be unique."
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"oldpassword123\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/profile/change-password",
+            "description": "Change admin password. **Required:** currentPassword, newPassword (min 6 chars). Use this in Profile/Settings page when logged in."
+          }
+        },
+        {
+          "name": "Forgot Password (Request OTP)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/forgot-password",
+            "description": "Request OTP for password reset. **Required:** email. Works for admin users too. In development, add ?dev=1 to see OTP in response."
+          }
+        },
+        {
+          "name": "Reset Password (With OTP)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/reset-password",
+            "description": "Reset password using OTP from forgot-password. **Required:** email, otp (6 digits), newPassword (min 6 chars). Use this on login page when admin forgot password."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"name\": \"New User\",\n  \"role\": \"user\",\n  \"isActive\": true,\n  \"subscription\": {}\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/users"
+          }
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"updated@example.com\",\n  \"name\": \"Updated Name\",\n  \"role\": \"user\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cycle Phases",
+      "item": [
+        {
+          "name": "Get All Cycle Phases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/cycle-phases"
+          }
+        },
+        {
+          "name": "Get Cycle Phase By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/cycle-phases/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "cycle-phases", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Create Cycle Phase",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"menstrual\",\n  \"displayName\": \"Menstrual Phase\",\n  \"description\": \"Description of phase\",\n  \"order\": 1,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/cycle-phases"
+          }
+        },
+        {
+          "name": "Update Cycle Phase",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Phase Name\",\n  \"description\": \"Updated description\",\n  \"order\": 2,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/cycle-phases/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "cycle-phases", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Cycle Phase",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/cycle-phases/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "cycle-phases", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sequences",
+      "item": [
+        {
+          "name": "Get All Sequences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sequences?cyclePhaseId=&isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sequences"],
+              "query": [
+                { "key": "cyclePhaseId", "value": "", "disabled": true },
+                { "key": "isActive", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sequence By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sequences/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sequences", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Create Sequence",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cyclePhase\": \"<cyclePhaseId>\",\n  \"name\": \"sequence-name\",\n  \"displayName\": \"Sequence Display Name\",\n  \"description\": \"Sequence description\",\n  \"thumbnail\": \"https://example.com/thumb.jpg\",\n  \"order\": 1,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/sequences"
+          }
+        },
+        {
+          "name": "Update Sequence",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Sequence Name\",\n  \"description\": \"Updated description\",\n  \"order\": 2,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sequences/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sequences", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Sequence",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sequences/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sequences", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Duplicate Sequence",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sequences/:id/duplicate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sequences", ":id", "duplicate"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Reorder Sequences",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sequenceIds\": [\"<id1>\", \"<id2>\", \"<id3>\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/sequences/reorder"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sessions",
+      "item": [
+        {
+          "name": "Get All Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sessions?sequenceId=&sessionType=&isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sessions"],
+              "query": [
+                { "key": "sequenceId", "value": "", "disabled": true },
+                { "key": "sessionType", "value": "", "disabled": true },
+                { "key": "isActive", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Session By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sessions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sessions", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Create Session",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sequence\": \"<sequenceId>\",\n  \"sessionType\": \"yoga\",\n  \"title\": \"Session Title\",\n  \"description\": \"Session description\",\n  \"benefits\": [\"relaxation\", \"flexibility\"],\n  \"thumbnail\": \"https://example.com/thumb.jpg\",\n  \"difficulty\": \"beginner\",\n  \"equipment\": \"Equipment-free\",\n  \"order\": 1,\n  \"isActive\": true,\n  \"isFree\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/sessions"
+          }
+        },
+        {
+          "name": "Update Session",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Session Title\",\n  \"description\": \"Updated description\",\n  \"difficulty\": \"intermediate\",\n  \"isActive\": true,\n  \"isFree\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sessions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sessions", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sessions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sessions", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Reorder Sessions",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionIds\": [\"<id1>\", \"<id2>\", \"<id3>\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/sessions/reorder"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Steps",
+      "item": [
+        {
+          "name": "Get All Steps",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/steps?sessionId=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "steps"],
+              "query": [
+                { "key": "sessionId", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Step By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/steps/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "steps", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Create Step",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session\": \"<sessionId>\",\n  \"title\": \"Step Title\",\n  \"instructions\": \"Step instructions\",\n  \"media\": \"<mediaId>\",\n  \"audio\": \"<audioMediaId>\",\n  \"timer\": 30,\n  \"restTime\": 5,\n  \"order\": 1,\n  \"isActive\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/steps"
+          }
+        },
+        {
+          "name": "Update Step",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Step Title\",\n  \"instructions\": \"Updated instructions\",\n  \"timer\": 45,\n  \"restTime\": 10,\n  \"order\": 2,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/steps/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "steps", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Step",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/steps/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "steps", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Reorder Steps",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stepIds\": [\"<id1>\", \"<id2>\", \"<id3>\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/steps/reorder"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Media Library",
+      "item": [
+        {
+          "name": "Get All Media",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/media?mediaType=video&tags=&isActive=true&search=",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "media"],
+              "query": [
+                { "key": "mediaType", "value": "video", "description": "video | audio | image | animation", "disabled": true },
+                { "key": "tags", "value": "", "disabled": true },
+                { "key": "isActive", "value": "true", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Media By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/media/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "media", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Create Media (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Media Title", "type": "text" },
+                { "key": "description", "value": "Media description", "type": "text" },
+                { "key": "mediaType", "value": "video", "type": "text", "description": "video | audio | image | animation" },
+                { "key": "duration", "value": "300", "type": "text", "description": "Duration in seconds" },
+                { "key": "orientation", "value": "portrait", "type": "text", "description": "portrait | landscape | square" },
+                { "key": "tags", "value": "[\"yoga\", \"kegel\"]", "type": "text", "description": "JSON string array" },
+                { "key": "isActive", "value": "true", "type": "text" },
+                { "key": "video", "type": "file", "src": [], "description": "Required. Video/audio/image file." },
+                { "key": "thumbnail", "type": "file", "src": [], "description": "Optional. Thumbnail image." }
+              ]
+            },
+            "url": "{{baseUrl}}/api/admin/media"
+          }
+        },
+        {
+          "name": "Update Media (multipart)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Updated Title", "type": "text" },
+                { "key": "description", "value": "Updated description", "type": "text" },
+                { "key": "video", "type": "file", "src": [] },
+                { "key": "thumbnail", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/media/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "media", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Media",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/media/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "media", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Videos",
+      "item": [
+        {
+          "name": "Get All Videos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/videos"
+          }
+        },
+        {
+          "name": "Create Video (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Video Title", "type": "text" },
+                { "key": "description", "value": "Video description", "type": "text" },
+                { "key": "type", "value": "yoga", "type": "text" },
+                { "key": "category", "value": "general", "type": "text" },
+                { "key": "phase", "value": "all", "type": "text" },
+                { "key": "duration", "value": "300", "type": "text" },
+                { "key": "equipment", "value": "Equipment-free", "type": "text" },
+                { "key": "benefits", "value": "[\"relaxation\",\"flexibility\"]", "type": "text" },
+                { "key": "isPremium", "value": "false", "type": "text" },
+                { "key": "video", "type": "file", "src": [] },
+                { "key": "thumbnail", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/api/admin/videos"
+          }
+        },
+        {
+          "name": "Update Video (multipart)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Updated Title", "type": "text" },
+                { "key": "video", "type": "file", "src": [] },
+                { "key": "thumbnail", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/videos/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "videos", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Video",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/videos/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "videos", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Get Video Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/videos/:id/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "videos", ":id", "stats"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Logs",
+      "item": [
+        {
+          "name": "Get Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/logs?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "logs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "userId", "value": "", "disabled": true },
+                { "key": "phase", "value": "", "disabled": true },
+                { "key": "flow", "value": "", "disabled": true },
+                { "key": "mood", "value": "", "disabled": true },
+                { "key": "symptom", "value": "", "disabled": true },
+                { "key": "dateFrom", "value": "", "disabled": true },
+                { "key": "dateTo", "value": "", "disabled": true }
+              ]
+            }
+          }
+        }
+        ,
+        {
+          "name": "Delete Log",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/logs/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "logs", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cycles",
+      "item": [
+        {
+          "name": "Get Cycles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/cycles?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "cycles"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "userId", "value": "", "disabled": true }
+              ]
+            }
+          }
+        }
+        ,
+        {
+          "name": "Delete Cycle",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/cycles/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "cycles", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "item": [
+        {
+          "name": "Get Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/subscriptions?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "subscriptions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "plan", "value": "", "disabled": true },
+                { "key": "isActive", "value": "", "disabled": true },
+                { "key": "isTrial", "value": "", "disabled": true },
+                { "key": "dateFrom", "value": "", "disabled": true },
+                { "key": "dateTo", "value": "", "disabled": true }
+              ]
+            }
+          }
+        }
+        ,
+        {
+          "name": "Delete Subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/subscriptions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "subscriptions", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gifts",
+      "item": [
+        {
+          "name": "Get Gifts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/gifts?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "gifts"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" },
+                { "key": "status", "value": "", "description": "active | redeemed | pending | expired | cancelled", "disabled": true },
+                { "key": "plan", "value": "", "description": "monthly | yearly", "disabled": true },
+                { "key": "partnerCode", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Gift By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/gifts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "gifts", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Gift",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/gifts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "gifts", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Notification",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"general\",\n  \"title\": \"Admin Notification\",\n  \"message\": \"Message content\",\n  \"userId\": \"\",\n  \"userIds\": [],\n  \"sendToAll\": false,\n  \"scheduledFor\": \"2025-10-01T10:00:00Z\"\n}"
+            },
+            "url": "{{baseUrl}}/api/notifications"
+          }
+        },
+        {
+          "name": "Update Notification",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isRead\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", ":id"],
+              "variable": [{ "key": "id", "value": "" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

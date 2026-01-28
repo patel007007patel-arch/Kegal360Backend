@@ -1,73 +1,73 @@
 import User from '../../models/User.model.js';
-import UserAnswer from '../../models/UserAnswer.model.js';
-import Question from '../../models/Question.model.js';
 
+/**
+ * Onboarding: app sends answers directly in body; API stores all in User.
+ * Questions/steps are static in the app — no config endpoint. Only this complete API.
+ *
+ * Body fields (app uses its own step order; send same field names):
+ * name, birthYear, appFor, trackCycle, cycleType, cycleLength, cycleLengthRange,
+ * periodLength, lastPeriodStart, lastPeriodEnd
+ */
 export const completeOnboarding = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { answers, trackCycle, cycleType, cycleLength, periodLength, cycleLengthRange, lastPeriodStart, lastPeriodEnd, appFor, name } = req.body;
+    const {
+      name,
+      birthYear,
+      appFor,
+      trackCycle,
+      cycleType,
+      cycleLength,
+      periodLength,
+      cycleLengthRange,
+      lastPeriodStart,
+      lastPeriodEnd
+    } = req.body;
 
-    // Update user onboarding data
     const updateData = {
       onboardingCompleted: true,
-      appFor: appFor || 'myself'
+      appFor: appFor === 'partner' ? 'partner' : 'myself'
     };
 
-    // "What should we call you?" → saved as user.name and shown on Home ("Welcome, {name}")
     if (name != null && String(name).trim()) {
       updateData.name = String(name).trim();
-    } else if (answers && Array.isArray(answers) && answers.length > 0) {
-      const nameQuestion = await Question.findOne({
-        category: 'onboarding',
-        question: /what should we call you/i
-      });
-      if (nameQuestion) {
-        const nameAnswer = answers.find(a => a.questionId && String(a.questionId) === String(nameQuestion._id));
-        if (nameAnswer?.answer != null && String(nameAnswer.answer).trim()) {
-          updateData.name = String(nameAnswer.answer).trim();
-        }
-      }
     }
-
-    if (trackCycle !== undefined) updateData.trackCycle = trackCycle;
-    if (cycleType) updateData.cycleType = cycleType;
-    if (cycleLength) updateData.cycleLength = cycleLength;
-    if (periodLength !== undefined) updateData.periodLength = Math.min(14, Math.max(1, parseInt(periodLength, 10) || 5));
-    if (cycleLengthRange) {
-      updateData.cycleLengthRange = {
-        min: cycleLengthRange.min,
-        max: cycleLengthRange.max
-      };
+    if (birthYear != null) {
+      const y = parseInt(birthYear, 10);
+      if (!isNaN(y)) updateData.birthYear = y;
+    }
+    if (trackCycle !== undefined) {
+      updateData.trackCycle = !!trackCycle;
+    }
+    if (cycleType && ['regular', 'irregular', 'absent'].includes(cycleType)) {
+      updateData.cycleType = cycleType;
+    }
+    if (cycleLength != null) {
+      const n = parseInt(cycleLength, 10);
+      if (!isNaN(n) && n >= 21 && n <= 45) updateData.cycleLength = n;
+    }
+    if (periodLength != null) {
+      const n = parseInt(periodLength, 10);
+      if (!isNaN(n)) updateData.periodLength = Math.min(14, Math.max(1, n));
+    }
+    if (cycleLengthRange && typeof cycleLengthRange.min === 'number' && typeof cycleLengthRange.max === 'number') {
+      updateData.cycleLengthRange = { min: cycleLengthRange.min, max: cycleLengthRange.max };
     }
     if (lastPeriodStart) {
       updateData.lastPeriodStart = new Date(lastPeriodStart);
-      // If only start date provided, estimate end date (default 5 days)
-      if (!lastPeriodEnd) {
-        const start = new Date(lastPeriodStart);
-        start.setDate(start.getDate() + 5);
-        updateData.lastPeriodEnd = start;
-      } else {
+      if (lastPeriodEnd) {
         updateData.lastPeriodEnd = new Date(lastPeriodEnd);
+      } else {
+        const start = new Date(lastPeriodStart);
+        start.setDate(start.getDate() + (updateData.periodLength ?? 5));
+        updateData.lastPeriodEnd = start;
       }
     }
 
     await User.findByIdAndUpdate(userId, updateData);
 
-    // Save answers to questions
-    if (answers && Array.isArray(answers)) {
-      for (const answer of answers) {
-        await UserAnswer.findOneAndUpdate(
-          { user: userId, question: answer.questionId },
-          { answer: answer.answer },
-          { upsert: true, new: true }
-        );
-      }
-    }
-
-    // Partner code is already generated during registration
-    // Just ensure it exists (should already be there)
     const user = await User.findById(userId);
-    if (!user.partnerCode) {
+    if (user && !user.partnerCode) {
       await user.generatePartnerCode();
       await user.save();
     }
@@ -91,23 +91,4 @@ export const completeOnboarding = async (req, res) => {
   }
 };
 
-export const getOnboardingQuestions = async (req, res) => {
-  try {
-    const questions = await Question.find({ category: 'onboarding' }).sort({ order: 1 });
-
-    res.json({
-      success: true,
-      data: {
-        questions
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching questions',
-      error: error.message
-    });
-  }
-};
-
-export default { completeOnboarding, getOnboardingQuestions };
+export default completeOnboarding;
