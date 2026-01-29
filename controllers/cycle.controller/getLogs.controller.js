@@ -61,7 +61,8 @@ export const getLogs = async (req, res) => {
     }
 
     if (phase) {
-      query.phase = phase;
+      // UI uses "menstrual"; Log model stores "period"
+      query.phase = phase === 'menstrual' ? 'period' : phase;
     }
 
     const logs = await Log.find(query)

@@ -3,9 +3,9 @@ import Notification from '../models/Notification.model.js';
 import User from '../models/User.model.js';
 import Log from '../models/Log.model.js';
 import Cycle from '../models/Cycle.model.js';
-import { getEffectiveCycleLength } from '../services/cycleCalculation.service.js';
+import { calculateNextPeriod, getEffectiveCycleLength } from '../services/cycleCalculation.service.js';
 
-// Schedule period reminders (uses effective cycle length: regular → cycleLength, irregular → midpoint of cycleLengthRange)
+// Schedule period reminders (uses same next-period logic as home API so reminders align with predictions)
 export const schedulePeriodReminders = () => {
   // Run daily at 9 AM
   cron.schedule('0 9 * * *', async () => {
@@ -18,12 +18,9 @@ export const schedulePeriodReminders = () => {
       for (const user of users) {
         if (!user.lastPeriodStart) continue;
         const cycleLength = getEffectiveCycleLength(user);
-        const lastPeriod = new Date(user.lastPeriodStart);
-        const nextPeriod = new Date(lastPeriod);
-        nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
-
-        const today = new Date();
-        const daysUntil = Math.ceil((nextPeriod - today) / (1000 * 60 * 60 * 24));
+        const nextPeriodResult = calculateNextPeriod(user.lastPeriodStart, cycleLength);
+        if (!nextPeriodResult) continue;
+        const daysUntil = nextPeriodResult.daysUntil;
 
         // Send reminder 1 day before
         if (daysUntil === 1) {

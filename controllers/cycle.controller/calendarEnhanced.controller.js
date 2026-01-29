@@ -97,7 +97,7 @@ export const getEnhancedCalendar = async (req, res) => {
         const calendarData = generateCalendarData(user, m, yearNum);
         const startDate = new Date(yearNum, m - 1, 1);
         const endDate = new Date(yearNum, m, 0, 23, 59, 59);
-        let logQuery = { user: userId, date: { $gte: startDate, $lte: endDate } };
+        let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
         if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
         const logs = await Log.find(logQuery).sort({ date: 1 });
         const enhancedCalendar = calendarData.calendar.map(dayData => {
@@ -139,7 +139,7 @@ export const getEnhancedCalendar = async (req, res) => {
     const calendarData = generateCalendarData(user, monthNum, yearNum);
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
-    let logQuery = { user: userId, date: { $gte: startDate, $lte: endDate } };
+    let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
     if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
     const logs = await Log.find(logQuery).sort({ date: 1 });
 

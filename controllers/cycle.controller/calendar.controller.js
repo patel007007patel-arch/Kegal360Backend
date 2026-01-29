@@ -48,8 +48,11 @@ export const getCalendar = async (req, res) => {
     // Resolve target user (self or partner)
     const { targetUserId, partnerInfo } = await resolvePartnerAccess(currentUserId, partnerCode);
 
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    const now = new Date();
+    const yearNum = year != null && year !== '' ? parseInt(year, 10) : now.getFullYear();
+    const monthNum = month != null && month !== '' ? parseInt(month, 10) : now.getMonth() + 1;
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
 
     let query = {
       user: targetUserId,
@@ -99,8 +102,8 @@ export const getCalendar = async (req, res) => {
       data: {
         calendar: calendarData,
         cycles,
-        month: parseInt(month),
-        year: parseInt(year),
+        month: monthNum,
+        year: yearNum,
         ...(partnerInfo && { partner: partnerInfo })
       }
     });

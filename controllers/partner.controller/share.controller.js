@@ -65,8 +65,8 @@ export const connectPartner = async (req, res) => {
       });
     }
 
-    // Find partner by code
-    const partner = await User.findOne({ partnerCode: code });
+    // Find partner by code (codes are stored uppercase)
+    const partner = await User.findOne({ partnerCode: (code || '').toString().trim().toUpperCase() });
 
     if (!partner) {
       return res.status(404).json({
