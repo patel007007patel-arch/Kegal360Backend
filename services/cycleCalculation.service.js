@@ -42,11 +42,15 @@ export const calculateNextPeriod = (lastPeriodStart, cycleLength = 28) => {
   const periodStart = new Date(lastPeriodStart);
   periodStart.setHours(0, 0, 0, 0);
 
-  const nextPeriod = new Date(periodStart);
-  nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Advance to the first period date that is today or in the future
+  const nextPeriod = new Date(periodStart);
+  nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
+  while (nextPeriod < today) {
+    nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
+  }
 
   const daysUntil = Math.ceil((nextPeriod - today) / (1000 * 60 * 60 * 24));
 
@@ -63,17 +67,20 @@ export const calculateNextOvulation = (lastPeriodStart, cycleLength = 28) => {
   const periodStart = new Date(lastPeriodStart);
   periodStart.setHours(0, 0, 0, 0);
 
-  // Ovulation typically occurs 14 days before next period
-  const nextPeriod = new Date(periodStart);
-  nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
-
-  const nextOvulation = new Date(nextPeriod);
-  nextOvulation.setDate(nextOvulation.getDate() - 14);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // If ovulation already passed this cycle, calculate for next cycle
+  // Find next period (first period date >= today), then ovulation is 14 days before that
+  const nextPeriod = new Date(periodStart);
+  nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
+  while (nextPeriod < today) {
+    nextPeriod.setDate(nextPeriod.getDate() + cycleLength);
+  }
+
+  let nextOvulation = new Date(nextPeriod);
+  nextOvulation.setDate(nextOvulation.getDate() - 14);
+
+  // If that ovulation already passed, use the next cycle's ovulation
   if (nextOvulation < today) {
     nextOvulation.setDate(nextOvulation.getDate() + cycleLength);
   }
