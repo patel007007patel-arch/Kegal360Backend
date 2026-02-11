@@ -31,7 +31,8 @@ export const register = async (req, res) => {
       onboardingCompleted: false
     };
 
-    if (password && !socialProvider) {
+    // Set password when user registers with email (not Google/Apple)
+    if (password && (!socialProvider || socialProvider === 'email')) {
       userData.password = password;
     }
 
