@@ -33,9 +33,17 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Middleware
+// CORS: allow multiple origins (comma-separated FRONTEND_URL). Each normalized (no trailing slash).
+const defaultOrigins = ['http://localhost:3000', 'https://kegal360-frontned.vercel.app'];
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean)
+  : defaultOrigins;
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(null, false);
+  },
   credentials: true
 }));
 
