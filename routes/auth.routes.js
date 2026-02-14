@@ -6,6 +6,7 @@ import forgotPassword from '../controllers/auth.controller/forgotPassword.contro
 import resendOtp from '../controllers/auth.controller/resendOtp.controller.js';
 import resetPassword from '../controllers/auth.controller/resetPassword.controller.js';
 import getMe from '../controllers/auth.controller/me.controller.js';
+import checkEmail from '../controllers/auth.controller/checkEmail.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authRouteLogger, loginRequestLogger } from '../middleware/authDebug.middleware.js';
 
@@ -15,6 +16,7 @@ const router = express.Router();
 router.use(authRouteLogger);
 
 // Public routes
+router.post('/check-email', checkEmail);
 router.post('/register', register);
 router.post('/login', loginRequestLogger, login);
 router.post('/social-login', socialLogin);
