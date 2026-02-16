@@ -1,4 +1,5 @@
 import User from '../../models/User.model.js';
+import CycleSwitchHistory from '../../models/CycleSwitchHistory.model.js';
 
 /**
  * Onboarding: app sends answers directly in body; API stores all in User.
@@ -44,27 +45,46 @@ export const completeOnboarding = async (req, res) => {
     }
     if (cycleLength != null) {
       const n = parseInt(cycleLength, 10);
-      if (!isNaN(n) && n >= 21 && n <= 45) updateData.cycleLength = n;
+      if (!isNaN(n)) {
+        if (updateData.cycleType === 'absent' || updateData.cycleType === 'irregular') {
+          updateData.cycleLength = n;
+        } else if (n >= 21 && n <= 45) {
+          updateData.cycleLength = n;
+        }
+      }
     }
     if (periodLength != null) {
       const n = parseInt(periodLength, 10);
-      if (!isNaN(n)) updateData.periodLength = Math.min(14, Math.max(1, n));
+      if (!isNaN(n)) {
+        if (updateData.cycleType === 'absent') {
+          updateData.periodLength = n;
+        } else {
+          updateData.periodLength = Math.min(14, Math.max(1, n));
+        }
+      }
     }
-    if (cycleLengthRange && typeof cycleLengthRange.min === 'number' && typeof cycleLengthRange.max === 'number') {
-      updateData.cycleLengthRange = { min: cycleLengthRange.min, max: cycleLengthRange.max };
+    if (cycleLengthRange != null) {
+      const min = Number(cycleLengthRange.min);
+      const max = Number(cycleLengthRange.max);
+      if (!isNaN(min) && !isNaN(max)) {
+        updateData.cycleLengthRange = { min, max };
+      }
     }
-    if (lastPeriodStart) {
+    if (lastPeriodStart != null && lastPeriodStart !== '' && String(lastPeriodStart) !== '0') {
       updateData.lastPeriodStart = new Date(lastPeriodStart);
-      if (lastPeriodEnd) {
+      if (lastPeriodEnd != null && lastPeriodEnd !== '' && String(lastPeriodEnd) !== '0') {
         updateData.lastPeriodEnd = new Date(lastPeriodEnd);
       } else {
         const start = new Date(lastPeriodStart);
         start.setDate(start.getDate() + (updateData.periodLength ?? 5));
         updateData.lastPeriodEnd = start;
       }
+    } else if (updateData.cycleType === 'absent') {
+      updateData.lastPeriodStart = null;
+      updateData.lastPeriodEnd = null;
     }
 
-    await User.findByIdAndUpdate(userId, updateData);
+    await User.findByIdAndUpdate(userId, { $set: updateData });
 
     const user = await User.findById(userId);
     if (user && !user.partnerCode) {
@@ -74,11 +94,35 @@ export const completeOnboarding = async (req, res) => {
 
     const updatedUser = await User.findById(userId).select('-password');
 
+    // Always create switch history on first-time onboarding so initial cycle choice is recorded
+    await CycleSwitchHistory.create({
+      user: userId,
+      switchDate: new Date(),
+      cycleType: updatedUser.cycleType,
+      trackCycle: updatedUser.trackCycle,
+      cycleLength: updatedUser.cycleLength,
+      cycleLengthRange: updatedUser.cycleLengthRange,
+      periodLength: updatedUser.periodLength ?? 5,
+      lastPeriodStart: updatedUser.lastPeriodStart,
+      lastPeriodEnd: updatedUser.lastPeriodEnd
+    });
+
+    const settings = {
+      cycleType: updatedUser.cycleType || 'regular',
+      trackCycle: updatedUser.trackCycle !== false,
+      cycleLength: updatedUser.cycleLength != null ? updatedUser.cycleLength : (updatedUser.cycleType === 'absent' || updatedUser.cycleType === 'irregular' ? 0 : 28),
+      cycleLengthRange: updatedUser.cycleLengthRange || null,
+      periodLength: updatedUser.periodLength != null ? updatedUser.periodLength : (updatedUser.cycleType === 'absent' ? 0 : 5),
+      lastPeriodStart: updatedUser.lastPeriodStart || null,
+      lastPeriodEnd: updatedUser.lastPeriodEnd || null
+    };
+
     res.json({
       success: true,
       message: 'Onboarding completed successfully',
       data: {
-        user: updatedUser
+        user: updatedUser,
+        settings
       }
     });
   } catch (error) {

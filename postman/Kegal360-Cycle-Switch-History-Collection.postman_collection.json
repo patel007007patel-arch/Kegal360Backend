@@ -1,0 +1,116 @@
+{
+  "info": {
+    "name": "Kegal360 Cycle Switch History API",
+    "description": "Cycle Switch History and related cycle settings. History is created only when user changes cycleType (e.g. regular→irregular). Set {{token}} after Login.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Get token. Copy response data.token into collection variable {{token}}."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cycle Switch History",
+      "item": [
+        {
+          "name": "Get Cycle Switch History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/cycles/switch-history",
+            "description": "Returns list of cycle type switches. Each entry has switchDate, cycleType, trackCycle, cycleLength, cycleLengthRange, periodLength, lastPeriodStart, lastPeriodEnd. History is created only when user changes cycleType (regular/irregular/absent)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cycle Settings",
+      "item": [
+        {
+          "name": "Get Cycle Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/cycles/settings",
+            "description": "Current cycle settings. Use before/after Update to see changes."
+          }
+        },
+        {
+          "name": "Update Cycle Settings (change type to create history)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cycleType\": \"irregular\",\n  \"trackCycle\": true,\n  \"cycleLength\": 0,\n  \"cycleLengthRange\": { \"min\": 28, \"max\": 38 },\n  \"periodLength\": 6,\n  \"lastPeriodStart\": \"2026-02-01\",\n  \"lastPeriodEnd\": \"2026-02-06\"\n}"
+            },
+            "url": "{{baseUrl}}/api/cycles/settings",
+            "description": "Update settings. Change cycleType (regular|irregular|absent) to create a new entry in switch history. Same cycleType = no history entry."
+          }
+        },
+        {
+          "name": "Update to Regular",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cycleType\": \"regular\",\n  \"trackCycle\": true,\n  \"cycleLength\": 28,\n  \"cycleLengthRange\": null,\n  \"periodLength\": 5,\n  \"lastPeriodStart\": \"2026-02-01\",\n  \"lastPeriodEnd\": \"2026-02-05\"\n}"
+            },
+            "url": "{{baseUrl}}/api/cycles/settings"
+          }
+        },
+        {
+          "name": "Update to Absent",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cycleType\": \"absent\",\n  \"trackCycle\": false,\n  \"cycleLength\": 0,\n  \"cycleLengthRange\": { \"min\": 0, \"max\": 0 },\n  \"periodLength\": 0,\n  \"lastPeriodStart\": null,\n  \"lastPeriodEnd\": null\n}"
+            },
+            "url": "{{baseUrl}}/api/cycles/settings"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health",
+            "description": "Check if API is running."
+          }
+        }
+      ]
+    }
+  ]
+}

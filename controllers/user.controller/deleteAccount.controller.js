@@ -7,6 +7,7 @@ import VideoProgress from '../../models/VideoProgress.model.js';
 import UserProgress from '../../models/UserProgress.model.js';
 import Favorite from '../../models/Favorite.model.js';
 import CustomLog from '../../models/CustomLog.model.js';
+import CycleSwitchHistory from '../../models/CycleSwitchHistory.model.js';
 import GiftSubscription from '../../models/GiftSubscription.model.js';
 import OtpToken from '../../models/OtpToken.model.js';
 
@@ -38,6 +39,7 @@ export const deleteAccount = async (req, res) => {
       UserProgress.deleteMany({ user: userId }),
       Favorite.deleteMany({ user: userId }),
       CustomLog.deleteMany({ user: userId }),
+      CycleSwitchHistory.deleteMany({ user: userId }),
       GiftSubscription.deleteMany({
         $or: [{ recipient: userId }, { sender: userId }]
       }),

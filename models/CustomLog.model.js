@@ -1,37 +1,22 @@
 import mongoose from 'mongoose';
 
+const logEntrySchema = new mongoose.Schema({
+  logTitle: { type: String, default: '' },
+  logimage: { type: String, default: '' } // path/URL of uploaded image
+}, { _id: true }); // each entry has its own _id for update/delete by entry
+
 const customLogSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    unique: true // one CustomLog document per user
   },
-  name: {
-    type: String,
-    required: true
-  },
-  icon: {
-    type: String,
-    default: 'heart'
-  },
-  icons: [{
-    icon: String,
-    label: String,
-    order: Number
-  }],
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  order: {
-    type: Number,
-    default: 0
-  }
+  log: [logEntrySchema]
 }, {
   timestamps: true
 });
 
-// Index
-customLogSchema.index({ user: 1, isActive: 1 });
+customLogSchema.index({ user: 1 });
 
 export default mongoose.model('CustomLog', customLogSchema);

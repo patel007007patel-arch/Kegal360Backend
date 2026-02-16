@@ -61,7 +61,7 @@ const userSchema = new mongoose.Schema({
     default: 5
   },
   cycleLengthRange: {
-    min: Number, // For irregular cycles
+    min: Number, // For irregular (e.g. 28–38) or absent (0–0); stored in DB as sent
     max: Number
   },
   lastPeriodStart: Date,

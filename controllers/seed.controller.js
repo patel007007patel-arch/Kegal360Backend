@@ -14,6 +14,7 @@ import UserProgress from '../models/UserProgress.model.js';
 import VideoProgress from '../models/VideoProgress.model.js';
 import Favorite from '../models/Favorite.model.js';
 import CustomLog from '../models/CustomLog.model.js';
+import CycleSwitchHistory from '../models/CycleSwitchHistory.model.js';
 
 const ADMIN_EMAIL = 'admin@k360.com';
 const ADMIN_PASSWORD = 'admin123';
@@ -134,6 +135,7 @@ export async function runSeed(req, res) {
     await VideoProgress.deleteMany({});
     await Favorite.deleteMany({});
     await CustomLog.deleteMany({});
+    await CycleSwitchHistory.deleteMany({});
     await Step.deleteMany({});
     await Session.deleteMany({});
     await Sequence.deleteMany({});
@@ -456,24 +458,16 @@ export async function runSeed(req, res) {
     const insertedFavs = await Favorite.insertMany(favDocs);
     seeded.favorites = insertedFavs.length;
 
-    // —— Custom logs (user-defined log types with icons) ——
+    // —— Custom logs (one doc per user; mainTitle only in API response) ——
     const customLogDocs = [];
-    const customLogNames = ['Energy', 'Sleep', 'Mood', 'Exercise', 'Water'];
-    const icons = ['sun', 'moon', 'heart', 'run', 'drop'];
-    demoUserIds.forEach((userId, i) => {
-      customLogNames.slice(0, 3).forEach((name, j) => {
-        customLogDocs.push({
-          user: userId,
-          name: `${name} (${FIRST_NAMES[i % FIRST_NAMES.length]})`,
-          icon: icons[j],
-          icons: [
-            { icon: 'low', label: 'Low', order: 1 },
-            { icon: 'mid', label: 'Mid', order: 2 },
-            { icon: 'high', label: 'High', order: 3 }
-          ],
-          isActive: true,
-          order: j + 1
-        });
+    demoUserIds.forEach((userId) => {
+      customLogDocs.push({
+        user: userId,
+        log: [
+          { logTitle: 'Energy', logimage: '' },
+          { logTitle: 'Sleep', logimage: '' },
+          { logTitle: 'Mood', logimage: '' }
+        ]
       });
     });
     const insertedCustomLogs = await CustomLog.insertMany(customLogDocs);

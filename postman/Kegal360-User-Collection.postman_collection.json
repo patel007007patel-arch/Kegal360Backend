@@ -760,13 +760,19 @@
           "name": "Create Custom Log",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Weight\",\n  \"icon\": \"scale\",\n  \"icons\": [\"scale\", \"heart\"]\n}"
+              "mode": "formdata",
+              "formdata": [
+                { "key": "mainTitle", "value": "CustomeLogs", "type": "text" },
+                { "key": "logTitle1", "value": "Energy", "type": "text" },
+                { "key": "logimage1", "type": "file", "src": [] },
+                { "key": "logTitle2", "value": "Sleep", "type": "text" },
+                { "key": "logimage2", "type": "file", "src": [] }
+              ]
             },
             "url": "{{baseUrl}}/api/custom-logs",
-            "description": "**Required:** name (string). **Optional:** icon (string), icons (array of strings). Use name/icon/icons per API; do not use logName or value."
+            "description": "**Form-data only (no JSON):** mainTitle, then for each entry: logTitle1, logimage1 (file), logTitle2, logimage2 (file), ... up to logTitle20, logimage20. Stored in DB as array: [{ logTitle, logimage }, ...]. Response: { success, data: { mainTitle, log } }."
           }
         },
         {
@@ -794,10 +800,14 @@
           "name": "Update Custom Log",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Weight\",\n  \"icon\": \"scale\",\n  \"icons\": [\"scale\"],\n  \"isActive\": true,\n  \"order\": 1\n}"
+              "mode": "formdata",
+              "formdata": [
+                { "key": "mainTitle", "value": "CustomeLogs", "type": "text" },
+                { "key": "log", "value": "[{\"logTitle\":\"Updated 1\",\"logimage\":\"\"},{\"logTitle\":\"Updated 2\",\"logimage\":\"\"}]", "type": "text" },
+                { "key": "logimage", "type": "file", "src": [] }
+              ]
             },
             "url": {
               "raw": "{{baseUrl}}/api/custom-logs/:id",
@@ -805,7 +815,7 @@
               "path": ["api", "custom-logs", ":id"],
               "variable": [{ "key": "id", "value": "" }]
             },
-            "description": "**All optional:** name, icon, icons (array), isActive (boolean), order (number). Path param :id is the custom log ID."
+            "description": "**Update custom log (form-data):**\n1. **mainTitle** (optional) – new title.\n2. **log** (JSON string) – full array of entries. For each entry send { logTitle, logimage }. Use **existing logimage URL** for entries you are not changing (e.g. from GET response); use \"\" for new or when replacing with a file.\n3. **logimage** (files) – upload only for entries where you want to **replace** the image. Order = index: 1st file → log[0], 2nd file → log[1].\n\nExample: To update only logTitle of 1st entry and replace image of 2nd entry:\n- log: [{\"logTitle\":\"New title 1\",\"logimage\":\"/uploads/custom-logs/old1.jpg\"},{\"logTitle\":\"Entry 2\",\"logimage\":\"\"}]\n- logimage: [one file] → goes to log[1].\n\nResponse: { success, data: { mainTitle, log } }."
           }
         },
         {

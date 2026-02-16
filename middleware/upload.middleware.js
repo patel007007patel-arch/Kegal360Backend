@@ -12,8 +12,9 @@ const assetsDir = path.join(uploadDir, 'assets');
 const videoDir = path.join(assetsDir, 'videos');
 const imageDir = path.join(uploadDir, 'images');
 const thumbnailDir = path.join(assetsDir, 'thumbnails');
+const customLogsDir = path.join(uploadDir, 'custom-logs');
 
-[uploadDir, assetsDir, videoDir, imageDir, thumbnailDir].forEach(dir => {
+[uploadDir, assetsDir, videoDir, imageDir, thumbnailDir, customLogsDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -51,6 +52,60 @@ const thumbnailStorage = multer.diskStorage({
     cb(null, 'thumbnail-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
+
+// Custom log images (same as video: stored locally under uploads/custom-logs)
+const customLogImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, customLogsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logimage-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const imageOnlyFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  if (mimetype && extname) return cb(null, true);
+  cb(new Error('Only image files are allowed!'));
+};
+
+export const uploadCustomLogImages = multer({
+  storage: customLogImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per image
+  fileFilter: imageOnlyFilter
+}).array('logimage', 20);
+
+export const uploadCustomLogSingleImage = multer({
+  storage: customLogImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageOnlyFilter
+}).single('logimage');
+
+// Create: flat form-data logimage1, logimage2, ... (no JSON)
+const MAX_LOG_ENTRIES = 20;
+const createLogImageFields = Array.from({ length: MAX_LOG_ENTRIES }, (_, i) => ({
+  name: `logimage${i + 1}`,
+  maxCount: 1
+}));
+export const uploadCustomLogCreate = multer({
+  storage: customLogImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageOnlyFilter
+}).fields(createLogImageFields);
+
+// Batch update entries: entryId1, logTitle1, logimage1, entryId2, logTitle2, logimage2, ... (no JSON)
+const batchUpdateFields = [];
+for (let i = 1; i <= MAX_LOG_ENTRIES; i++) {
+  batchUpdateFields.push({ name: `logimage${i}`, maxCount: 1 });
+}
+export const uploadCustomLogBatchUpdate = multer({
+  storage: customLogImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageOnlyFilter
+}).fields(batchUpdateFields);
 
 // File filter
 const fileFilter = (req, file, cb) => {
@@ -154,4 +209,4 @@ export const normalizeVideoUpload = (req, res, next) => {
   next();
 };
 
-export default { uploadVideo, uploadImage, uploadThumbnail, uploadVideoAndThumbnail };
+export default { uploadVideo, uploadImage, uploadThumbnail, uploadVideoAndThumbnail, uploadCustomLogImages, uploadCustomLogCreate, uploadCustomLogSingleImage, uploadCustomLogBatchUpdate };

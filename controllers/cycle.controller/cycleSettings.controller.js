@@ -1,4 +1,5 @@
 import User from '../../models/User.model.js';
+import CycleSwitchHistory from '../../models/CycleSwitchHistory.model.js';
 
 /**
  * GET /api/cycles/settings
@@ -75,39 +76,46 @@ export const updateCycleSettings = async (req, res) => {
 
     if (cycleLength !== undefined) {
       const n = parseInt(cycleLength, 10);
-      if (n < 21 || n > 45) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cycle length must be between 21 and 45 days.'
-        });
+      if (!isNaN(n)) {
+        if (cycleType === 'absent' || cycleType === 'irregular') {
+          update.cycleLength = n;
+        } else if (n >= 21 && n <= 45) {
+          update.cycleLength = n;
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'Cycle length must be between 21 and 45 days for regular type.'
+          });
+        }
       }
-      update.cycleLength = n;
     }
 
     if (cycleLengthRange !== undefined) {
       if (cycleLengthRange === null || cycleLengthRange === '') {
         update.cycleLengthRange = undefined;
-      } else if (
-        cycleLengthRange &&
-        typeof cycleLengthRange.min === 'number' &&
-        typeof cycleLengthRange.max === 'number'
-      ) {
-        update.cycleLengthRange = {
-          min: cycleLengthRange.min,
-          max: cycleLengthRange.max
-        };
+      } else if (cycleLengthRange != null) {
+        const min = Number(cycleLengthRange.min);
+        const max = Number(cycleLengthRange.max);
+        if (!isNaN(min) && !isNaN(max)) {
+          update.cycleLengthRange = { min, max };
+        }
       }
     }
 
     if (periodLength !== undefined) {
       const n = parseInt(periodLength, 10);
-      if (n < 1 || n > 14) {
-        return res.status(400).json({
-          success: false,
-          message: 'Period length must be between 1 and 14 days.'
-        });
+      if (!isNaN(n)) {
+        if (cycleType === 'absent') {
+          update.periodLength = n;
+        } else if (n >= 1 && n <= 14) {
+          update.periodLength = n;
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'Period length must be between 1 and 14 days.'
+          });
+        }
       }
-      update.periodLength = n;
     }
 
     if (lastPeriodStart !== undefined) {
@@ -117,6 +125,11 @@ export const updateCycleSettings = async (req, res) => {
       update.lastPeriodEnd = lastPeriodEnd ? new Date(lastPeriodEnd) : null;
     }
 
+    const previousUser = await User.findById(userId).select('cycleType').lean();
+    const previousCycleType = previousUser?.cycleType;
+    const newCycleType = update.cycleType !== undefined ? update.cycleType : previousCycleType;
+    const cycleTypeChanged = newCycleType !== undefined && newCycleType !== previousCycleType;
+
     const user = await User.findByIdAndUpdate(
       userId,
       update,
@@ -125,6 +138,21 @@ export const updateCycleSettings = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Only create switch history when user actually changes cycleType (e.g. regular→irregular or irregular→regular). Not when same type.
+    if (cycleTypeChanged) {
+      await CycleSwitchHistory.create({
+        user: userId,
+        switchDate: new Date(),
+        cycleType: user.cycleType,
+        trackCycle: user.trackCycle,
+        cycleLength: user.cycleLength,
+        cycleLengthRange: user.cycleLengthRange,
+        periodLength: user.periodLength ?? 5,
+        lastPeriodStart: user.lastPeriodStart,
+        lastPeriodEnd: user.lastPeriodEnd
+      });
     }
 
     res.json({
@@ -150,4 +178,40 @@ export const updateCycleSettings = async (req, res) => {
   }
 };
 
-export default { getCycleSettings, updateCycleSettings };
+/**
+ * GET /api/cycles/switch-history
+ * Returns user's cycle switch history for sync (each time they updated cycle type/settings).
+ */
+export const getCycleSwitchHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const history = await CycleSwitchHistory.find({ user: userId })
+      .sort({ switchDate: -1 })
+      .lean();
+
+    const data = history.map((h) => ({
+      switchDate: h.switchDate,
+      cycleType: h.cycleType || 'regular',
+      trackCycle: h.trackCycle !== false,
+      cycleLength: h.cycleLength ?? 28,
+      cycleLengthRange: h.cycleLengthRange || null,
+      periodLength: h.periodLength ?? 5,
+      lastPeriodStart: h.lastPeriodStart || null,
+      lastPeriodEnd: h.lastPeriodEnd || null
+    }));
+
+    res.json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Get cycle switch history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching cycle switch history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+export default { getCycleSettings, updateCycleSettings, getCycleSwitchHistory };
