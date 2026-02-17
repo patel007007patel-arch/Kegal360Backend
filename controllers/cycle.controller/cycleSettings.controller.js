@@ -125,11 +125,6 @@ export const updateCycleSettings = async (req, res) => {
       update.lastPeriodEnd = lastPeriodEnd ? new Date(lastPeriodEnd) : null;
     }
 
-    const previousUser = await User.findById(userId).select('cycleType').lean();
-    const previousCycleType = previousUser?.cycleType;
-    const newCycleType = update.cycleType !== undefined ? update.cycleType : previousCycleType;
-    const cycleTypeChanged = newCycleType !== undefined && newCycleType !== previousCycleType;
-
     const user = await User.findByIdAndUpdate(
       userId,
       update,
@@ -140,20 +135,18 @@ export const updateCycleSettings = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Only create switch history when user actually changes cycleType (e.g. regular→irregular or irregular→regular). Not when same type.
-    if (cycleTypeChanged) {
-      await CycleSwitchHistory.create({
-        user: userId,
-        switchDate: new Date(),
-        cycleType: user.cycleType,
-        trackCycle: user.trackCycle,
-        cycleLength: user.cycleLength,
-        cycleLengthRange: user.cycleLengthRange,
-        periodLength: user.periodLength ?? 5,
-        lastPeriodStart: user.lastPeriodStart,
-        lastPeriodEnd: user.lastPeriodEnd
-      });
-    }
+    // Create switch history every time user hits update (records full snapshot of cycle settings).
+    await CycleSwitchHistory.create({
+      user: userId,
+      switchDate: new Date(),
+      cycleType: user.cycleType,
+      trackCycle: user.trackCycle,
+      cycleLength: user.cycleLength,
+      cycleLengthRange: user.cycleLengthRange,
+      periodLength: user.periodLength ?? 5,
+      lastPeriodStart: user.lastPeriodStart,
+      lastPeriodEnd: user.lastPeriodEnd
+    });
 
     res.json({
       success: true,
@@ -190,6 +183,7 @@ export const getCycleSwitchHistory = async (req, res) => {
       .lean();
 
     const data = history.map((h) => ({
+      id: h._id,
       switchDate: h.switchDate,
       cycleType: h.cycleType || 'regular',
       trackCycle: h.trackCycle !== false,
@@ -214,4 +208,49 @@ export const getCycleSwitchHistory = async (req, res) => {
   }
 };
 
-export default { getCycleSettings, updateCycleSettings, getCycleSwitchHistory };
+/**
+ * DELETE /api/cycles/switch-history
+ * For testing only. Removes switch history records by ids in request body.
+ * Body: { ids: ["id1", "id2", ...] } – only records belonging to the authenticated user are deleted.
+ */
+export const removeSwitchHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { ids } = req.body || {};
+
+    if (!ids || !Array.isArray(ids)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Request body must include an array of ids: { "ids": ["id1", "id2", ...] }'
+      });
+    }
+
+    const validIds = ids.filter((id) => id != null && String(id).trim());
+    if (validIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one valid id is required in ids array'
+      });
+    }
+
+    const result = await CycleSwitchHistory.deleteMany({
+      _id: { $in: validIds },
+      user: userId
+    });
+
+    res.json({
+      success: true,
+      message: 'Switch history records removed (testing only)',
+      data: { deletedCount: result.deletedCount }
+    });
+  } catch (error) {
+    console.error('Remove switch history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error removing switch history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+export default { getCycleSettings, updateCycleSettings, getCycleSwitchHistory, removeSwitchHistory };

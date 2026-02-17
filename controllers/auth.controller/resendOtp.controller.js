@@ -3,7 +3,7 @@ import OtpToken from '../../models/OtpToken.model.js';
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 10;
-const RESEND_COOLDOWN_SECONDS = 60;
+const RESEND_COOLDOWN_SECONDS = 30;
 
 function generateOtp() {
   const digits = '0123456789';
@@ -17,7 +17,7 @@ function generateOtp() {
 /**
  * POST /auth/resend-otp
  * Body: { email, purpose?: 'forgot_password' | 'email_verification' }
- * Resends OTP. Rate-limited by cooldown (e.g. 60s). Same semantics as forgot-password for forgot_password purpose.
+ * Resends OTP. Rate-limited by cooldown (30s). Same semantics as forgot-password for forgot_password purpose.
  */
 export const resendOtp = async (req, res) => {
   try {

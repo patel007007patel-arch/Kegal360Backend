@@ -12,6 +12,8 @@ const customLogSchema = new mongoose.Schema({
     required: true,
     unique: true // one CustomLog document per user
   },
+  /** Set only on first create; not overwritten by later POST; updatable via PUT */
+  customLogTitle: { type: String, default: '' },
   log: [logEntrySchema]
 }, {
   timestamps: true

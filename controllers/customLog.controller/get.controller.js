@@ -1,7 +1,8 @@
 import CustomLog from '../../models/CustomLog.model.js';
 import { getServerUrl } from '../../utils/serverUrl.js';
 
-const RESPONSE_MAIN_TITLE = 'CustomeLogs'; // only in response, not stored
+const DEFAULT_MAIN_TITLE = 'CustomeLogs'; // fallback when customLogTitle not set
+const MAX_ENTRIES_BATCH = 20;
 const LOG_IMAGE_PATH = '/uploads/custom-logs/';
 const getLogImageUrl = (filename) => `${getServerUrl()}${LOG_IMAGE_PATH}${filename}`;
 const toFullImageUrl = (value) => {
@@ -10,8 +11,9 @@ const toFullImageUrl = (value) => {
   return `${getServerUrl()}${value.startsWith('/') ? value : '/' + value}`;
 };
 
+/** mainTitle = stored customLogTitle (same value, one field in response) */
 const formatCustomLogResponse = (doc) => ({
-  mainTitle: RESPONSE_MAIN_TITLE,
+  mainTitle: (doc.customLogTitle && doc.customLogTitle.trim()) ? doc.customLogTitle : DEFAULT_MAIN_TITLE,
   log: (doc.log || []).map((entry) => ({
     id: entry._id,
     logTitle: entry.logTitle ?? '',
@@ -77,7 +79,10 @@ export const getCustomLogById = async (req, res) => {
 
 /**
  * PUT /api/custom-logs/:id
- * Form-data: log (JSON string array), logimage (files). Updates whole log array. mainTitle not stored.
+ * Form-data: each key separately (no single JSON).
+ * - customLogTitle (or customeLogTitle or mainTitle) – update document title.
+ * - entryId1, logTitle1, logimage1 (file), entryId2, logTitle2, logimage2 (file), ... – update entries by id.
+ * User can send only the keys they want to update.
  */
 export const updateCustomLog = async (req, res) => {
   try {
@@ -92,23 +97,28 @@ export const updateCustomLog = async (req, res) => {
       });
     }
 
-    if (req.body.log !== undefined && typeof req.body.log === 'string') {
-      try {
-        const parsed = JSON.parse(req.body.log);
-        if (Array.isArray(parsed)) {
-          customLog.log = parsed.map((entry) => ({
-            logTitle: entry && typeof entry.logTitle !== 'undefined' ? String(entry.logTitle) : '',
-            logimage: (entry && entry.logimage) ? String(entry.logimage) : ''
-          }));
-        }
-      } catch (_) {
-        // keep existing log if invalid JSON
-      }
+    const customLogTitleInput = req.body.customLogTitle ?? req.body.customeLogTitle ?? req.body.mainTitle;
+    if (customLogTitleInput !== undefined) {
+      customLog.customLogTitle = customLogTitleInput != null && String(customLogTitleInput).trim() !== ''
+        ? String(customLogTitleInput).trim()
+        : '';
     }
 
-    const files = req.files || [];
-    for (let i = 0; i < customLog.log.length && i < files.length; i++) {
-      customLog.log[i].logimage = getLogImageUrl(files[i].filename);
+    for (let i = 1; i <= MAX_ENTRIES_BATCH; i++) {
+      const entryId = req.body[`entryId${i}`];
+      if (entryId === undefined) continue;
+
+      const entry = customLog.log.id(entryId);
+      if (!entry) continue;
+
+      const title = req.body[`logTitle${i}`];
+      if (title !== undefined) {
+        entry.logTitle = String(title).trim();
+      }
+      const file = req.files && req.files[`logimage${i}`] && req.files[`logimage${i}`][0];
+      if (file) {
+        entry.logimage = getLogImageUrl(file.filename);
+      }
     }
 
     await customLog.save();
@@ -170,7 +180,7 @@ export const updateCustomLogEntry = async (req, res) => {
       success: true,
       message: 'Log entry updated successfully',
       data: {
-        mainTitle: RESPONSE_MAIN_TITLE,
+        mainTitle: (customLog.customLogTitle && customLog.customLogTitle.trim()) ? customLog.customLogTitle : DEFAULT_MAIN_TITLE,
         entry: {
           id: entry._id,
           logTitle: entry.logTitle,
@@ -187,8 +197,6 @@ export const updateCustomLogEntry = async (req, res) => {
     });
   }
 };
-
-const MAX_ENTRIES_BATCH = 20;
 
 /**
  * PUT /api/custom-logs/entries
@@ -242,7 +250,7 @@ export const updateCustomLogEntries = async (req, res) => {
       success: true,
       message: 'Log entries updated successfully',
       data: {
-        mainTitle: RESPONSE_MAIN_TITLE,
+        mainTitle: (customLog.customLogTitle && customLog.customLogTitle.trim()) ? customLog.customLogTitle : DEFAULT_MAIN_TITLE,
         updated: updatedEntries
       }
     });

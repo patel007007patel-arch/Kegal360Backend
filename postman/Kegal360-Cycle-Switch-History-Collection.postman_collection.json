@@ -43,6 +43,19 @@
             "url": "{{baseUrl}}/api/cycles/switch-history",
             "description": "Returns list of cycle type switches. Each entry has switchDate, cycleType, trackCycle, cycleLength, cycleLengthRange, periodLength, lastPeriodStart, lastPeriodEnd. History is created only when user changes cycleType (regular/irregular/absent)."
           }
+        },
+        {
+          "name": "Remove Switch History",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\"<paste id from GET switch-history data[].id>\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/cycles/switch-history",
+            "description": "Testing only. Deletes switch history records by ids in body. Body: { \"ids\": [\"id1\", \"id2\", ...] }. Only records belonging to the authenticated user are deleted. Response: { success, data: { deletedCount } }."
+          }
         }
       ]
     },

@@ -804,9 +804,13 @@
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "mainTitle", "value": "CustomeLogs", "type": "text" },
-                { "key": "log", "value": "[{\"logTitle\":\"Updated 1\",\"logimage\":\"\"},{\"logTitle\":\"Updated 2\",\"logimage\":\"\"}]", "type": "text" },
-                { "key": "logimage", "type": "file", "src": [] }
+                { "key": "customLogTitle", "value": "My Custom Log", "type": "text" },
+                { "key": "entryId1", "value": "", "type": "text" },
+                { "key": "logTitle1", "value": "Updated 1", "type": "text" },
+                { "key": "logimage1", "type": "file", "src": [] },
+                { "key": "entryId2", "value": "", "type": "text" },
+                { "key": "logTitle2", "value": "Updated 2", "type": "text" },
+                { "key": "logimage2", "type": "file", "src": [] }
               ]
             },
             "url": {
@@ -815,7 +819,7 @@
               "path": ["api", "custom-logs", ":id"],
               "variable": [{ "key": "id", "value": "" }]
             },
-            "description": "**Update custom log (form-data):**\n1. **mainTitle** (optional) – new title.\n2. **log** (JSON string) – full array of entries. For each entry send { logTitle, logimage }. Use **existing logimage URL** for entries you are not changing (e.g. from GET response); use \"\" for new or when replacing with a file.\n3. **logimage** (files) – upload only for entries where you want to **replace** the image. Order = index: 1st file → log[0], 2nd file → log[1].\n\nExample: To update only logTitle of 1st entry and replace image of 2nd entry:\n- log: [{\"logTitle\":\"New title 1\",\"logimage\":\"/uploads/custom-logs/old1.jpg\"},{\"logTitle\":\"Entry 2\",\"logimage\":\"\"}]\n- logimage: [one file] → goes to log[1].\n\nResponse: { success, data: { mainTitle, log } }."
+            "description": "**Update custom log – each key separately (form-data):**\n- **customLogTitle** (or customeLogTitle, mainTitle) – document title.\n- **entryId1**, **logTitle1**, **logimage1** (file) – update entry by id; same for entryId2, logTitle2, logimage2 … entryId20, logTitle20, logimage20.\nSend only the keys you want to update. Response: { success, data: { id, mainTitle, log } }."
           }
         },
         {

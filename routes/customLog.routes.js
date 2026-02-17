@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { requireMultipart, uploadCustomLogCreate, uploadCustomLogImages, uploadCustomLogSingleImage, uploadCustomLogBatchUpdate } from '../middleware/upload.middleware.js';
+import { requireMultipart, uploadCustomLogCreate, uploadCustomLogSingleImage, uploadCustomLogBatchUpdate } from '../middleware/upload.middleware.js';
 import createCustomLog from '../controllers/customLog.controller/create.controller.js';
 import {
   getCustomLogs,
@@ -22,7 +22,7 @@ router.get('/:id', getCustomLogById);
 router.put('/entries', requireMultipart, uploadCustomLogBatchUpdate, updateCustomLogEntries);
 router.put('/entry/:entryId', requireMultipart, uploadCustomLogSingleImage, updateCustomLogEntry);
 router.delete('/entry/:entryId', deleteCustomLogEntry);
-router.put('/:id', requireMultipart, uploadCustomLogImages, updateCustomLog);
+router.put('/:id', requireMultipart, uploadCustomLogBatchUpdate, updateCustomLog);
 router.delete('/:id', deleteCustomLog);
 
 export default router;

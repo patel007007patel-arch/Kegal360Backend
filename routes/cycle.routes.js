@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import getCalendar from '../controllers/cycle.controller/calendar.controller.js';
 import getEnhancedCalendar from '../controllers/cycle.controller/calendarEnhanced.controller.js';
 import getHomeData from '../controllers/cycle.controller/home.controller.js';
-import { getCycleSettings, updateCycleSettings, getCycleSwitchHistory } from '../controllers/cycle.controller/cycleSettings.controller.js';
+import { getCycleSettings, updateCycleSettings, getCycleSwitchHistory, removeSwitchHistory } from '../controllers/cycle.controller/cycleSettings.controller.js';
 
 const router = express.Router();
 
@@ -18,6 +18,7 @@ router.put('/settings', updateCycleSettings);
 
 // Cycle switch history (for sync: previous cycle type/settings each time user switched)
 router.get('/switch-history', getCycleSwitchHistory);
+router.delete('/switch-history', removeSwitchHistory); // Testing only: remove records by body.ids
 
 // Enhanced calendar with phase calculations
 router.get('/calendar/enhanced', getEnhancedCalendar);
