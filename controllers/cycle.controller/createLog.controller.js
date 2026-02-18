@@ -1,11 +1,26 @@
 import Log from '../../models/Log.model.js';
-import Cycle from '../../models/Cycle.model.js';
 import User from '../../models/User.model.js';
+import { addPeriodDay, removePeriodDay } from '../../services/periodUpdate.service.js';
 
 const toUtcDateKey = (d) => new Date(d).toISOString().slice(0, 10); // YYYY-MM-DD
 
+/** Normalize to UTC midnight (date-only). */
+const toUtcMidnight = (d) => {
+  const t = new Date(d);
+  t.setUTCHours(0, 0, 0, 0);
+  return t;
+};
+
+/** Add n days in UTC. */
+const addDaysUtc = (d, n) => {
+  const t = new Date(d);
+  t.setUTCDate(t.getUTCDate() + n);
+  return t;
+};
+
 /**
  * Keep user.lastPeriodStart/End + periodLength in sync with period logs.
+ * Used when REMOVING a period day (recompute from remaining logs).
  * This allows the UI to add/remove period days and have predictions update correctly.
  *
  * Strategy:
@@ -59,6 +74,10 @@ const syncUserPeriodFromLogs = async (userId) => {
   const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
   const derivedPeriodLength = Math.max(1, Math.min(14, diffDays + 1));
 
+  // Don't overwrite User with a period that starts in the future.
+  const today = toUtcMidnight(Date.now());
+  if (start.getTime() > today.getTime()) return;
+
   await User.findByIdAndUpdate(userId, {
     lastPeriodStart: start,
     lastPeriodEnd: end,
@@ -71,10 +90,13 @@ export const createLog = async (req, res) => {
     const userId = req.user._id;
     const { date, flow, flowIntensity, mood, symptoms, phase, temperature, notes, customLogs } = req.body;
 
-    // Check if log already exists for this date
+    const logDate = toUtcMidnight(date);
+    const dayEnd = addDaysUtc(logDate, 1);
+
+    // Check if log already exists for this date (same UTC day).
     const existingLog = await Log.findOne({
       user: userId,
-      date: new Date(date)
+      date: { $gte: logDate, $lt: dayEnd }
     });
 
     if (existingLog) {
@@ -93,9 +115,12 @@ export const createLog = async (req, res) => {
 
       await existingLog.save();
 
-      // If period days were changed (+/- Period Day), keep settings in sync.
-      if (prevPhase === 'period' || existingLog.phase === 'period') {
-        await syncUserPeriodFromLogs(userId);
+      // Period changed: ADD/REMOVE use same logic as /api/period (service). If remove and not at block start/end, sync from logs.
+      if (existingLog.phase === 'period') {
+        await addPeriodDay(userId, logDate);
+      } else if (prevPhase === 'period') {
+        const removed = await removePeriodDay(userId, logDate);
+        if (!removed.updated) await syncUserPeriodFromLogs(userId);
       }
 
       return res.json({
@@ -107,10 +132,10 @@ export const createLog = async (req, res) => {
       });
     }
 
-    // Create new log
+    // Create new log (store date as UTC midnight).
     const log = new Log({
       user: userId,
-      date: new Date(date),
+      date: logDate,
       flow,
       flowIntensity,
       mood,
@@ -123,8 +148,8 @@ export const createLog = async (req, res) => {
 
     await log.save();
 
-    // If this is a period day, sync settings (start/end/length) from logs.
-    if (phase === 'period') await syncUserPeriodFromLogs(userId);
+    // If this is a period day: same logic as POST /api/period/add (only User updated).
+    if (phase === 'period') await addPeriodDay(userId, logDate);
 
     res.status(201).json({
       success: true,

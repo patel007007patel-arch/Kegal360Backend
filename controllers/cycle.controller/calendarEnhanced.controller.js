@@ -95,15 +95,15 @@ export const getEnhancedCalendar = async (req, res) => {
       const months = [];
       for (let m = 1; m <= 12; m++) {
         const calendarData = generateCalendarData(user, m, yearNum);
-        const startDate = new Date(yearNum, m - 1, 1);
-        const endDate = new Date(yearNum, m, 0, 23, 59, 59);
+        const startDate = new Date(Date.UTC(yearNum, m - 1, 1));
+        const endDate = new Date(Date.UTC(yearNum, m, 0, 23, 59, 59, 999));
         let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
         if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
         const logs = await Log.find(logQuery).sort({ date: 1 });
         const enhancedCalendar = calendarData.calendar.map(dayData => {
           const log = logs.find(l => {
             const d = new Date(l.date);
-            return d.getDate() === dayData.day && d.getMonth() === m - 1 && d.getFullYear() === yearNum;
+            return d.getUTCDate() === dayData.day && d.getUTCMonth() === m - 1 && d.getUTCFullYear() === yearNum;
           });
           const dayInfo = {
             date: dayData.date,
@@ -135,10 +135,10 @@ export const getEnhancedCalendar = async (req, res) => {
       });
     }
 
-    // Single-month view
+    // Single-month view (UTC range so calendar and logs align with settings)
     const calendarData = generateCalendarData(user, monthNum, yearNum);
-    const startDate = new Date(yearNum, monthNum - 1, 1);
-    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
+    const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1));
+    const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59, 999));
     let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
     if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
     const logs = await Log.find(logQuery).sort({ date: 1 });
@@ -146,9 +146,9 @@ export const getEnhancedCalendar = async (req, res) => {
     const enhancedCalendar = calendarData.calendar.map(dayData => {
       const log = logs.find(l => {
         const logDate = new Date(l.date);
-        return logDate.getDate() === dayData.day &&
-               logDate.getMonth() === monthNum - 1 &&
-               logDate.getFullYear() === yearNum;
+        return logDate.getUTCDate() === dayData.day &&
+               logDate.getUTCMonth() === monthNum - 1 &&
+               logDate.getUTCFullYear() === yearNum;
       });
       const dayInfo = {
         date: dayData.date,

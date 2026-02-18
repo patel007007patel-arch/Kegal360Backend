@@ -325,6 +325,38 @@
       ]
     },
     {
+      "name": "Period",
+      "description": "Separate API for add/remove period day. Only updates User (lastPeriodStart, lastPeriodEnd, periodLength). No logs.",
+      "item": [
+        {
+          "name": "Add Period Day",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2025-09-16\"\n}"
+            },
+            "url": "{{baseUrl}}/api/period/add",
+            "description": "Add a period day. **Body:** date (YYYY-MM-DD). Only updates User (lastPeriodStart/lastPeriodEnd/periodLength) using cycle-block logic; does not create or update any Log. Use when user taps + Period Day."
+          }
+        },
+        {
+          "name": "Remove Period Day",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2025-09-16\"\n}"
+            },
+            "url": "{{baseUrl}}/api/period/remove",
+            "description": "Remove a period day. **Body:** date (YYYY-MM-DD). Only updates User (shrink start or end by 1); does not touch Logs. Use when user taps - Period Day."
+          }
+        }
+      ]
+    },
+    {
       "name": "Videos",
       "item": [
         {

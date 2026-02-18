@@ -125,6 +125,18 @@ export const updateCycleSettings = async (req, res) => {
       update.lastPeriodEnd = lastPeriodEnd ? new Date(lastPeriodEnd) : null;
     }
 
+    const currentUser = await User.findById(userId).select('lastPeriodStart periodLength').lean();
+
+    // Always set lastPeriodEnd = lastPeriodStart + (periodLength - 1) so length 5 = 5 days (Aug 5–9), not 6.
+    const effectiveStart = update.lastPeriodStart ?? currentUser?.lastPeriodStart;
+    const effectivePeriodLength = update.periodLength ?? currentUser?.periodLength ?? 5;
+    if (effectiveStart != null && effectivePeriodLength >= 1 && effectivePeriodLength <= 14) {
+      const end = new Date(effectiveStart);
+      end.setUTCHours(0, 0, 0, 0);
+      end.setUTCDate(end.getUTCDate() + (effectivePeriodLength - 1));
+      update.lastPeriodEnd = end;
+    }
+
     const user = await User.findByIdAndUpdate(
       userId,
       update,

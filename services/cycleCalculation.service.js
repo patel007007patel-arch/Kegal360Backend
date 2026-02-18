@@ -121,15 +121,27 @@ export const getEffectiveCycleLength = (user) => {
   return 28;
 };
 
+/**
+ * Last day of the given month in UTC (1–31).
+ */
+const getDaysInMonthUtc = (year, month) => {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+};
+
+/** Add n days in UTC. */
+const addDaysUtc = (d, n) => {
+  const t = new Date(d);
+  t.setUTCDate(t.getUTCDate() + n);
+  return t;
+};
+
 export const generateCalendarData = (user, month, year) => {
   if (!user.lastPeriodStart) {
     return { calendar: [], phases: {} };
   }
   const cycleLength = getEffectiveCycleLength(user);
 
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
-
+  const daysInMonth = getDaysInMonthUtc(year, month);
   const calendar = [];
   const phases = {
     menstrual: [],
@@ -138,20 +150,20 @@ export const generateCalendarData = (user, month, year) => {
     luteal: []
   };
 
+  // Use UTC midnight so calendar dates match settings (lastPeriodStart/End stored as UTC).
   const periodStart = new Date(user.lastPeriodStart);
-  periodStart.setHours(0, 0, 0, 0);
+  periodStart.setUTCHours(0, 0, 0, 0);
   const periodLen = user.periodLength ?? 5;
 
-  for (let day = 1; day <= endDate.getDate(); day++) {
-    const currentDate = new Date(year, month - 1, day);
-    currentDate.setHours(0, 0, 0, 0);
+  for (let day = 1; day <= daysInMonth; day++) {
+    const currentDate = new Date(Date.UTC(year, month - 1, day));
 
     const daysSincePeriod = Math.floor((currentDate - periodStart) / (1000 * 60 * 60 * 24));
 
     if (daysSincePeriod < 0) {
       const cyclesBack = Math.ceil(Math.abs(daysSincePeriod) / cycleLength);
       const adjustedPeriodStart = new Date(periodStart);
-      adjustedPeriodStart.setDate(adjustedPeriodStart.getDate() - (cyclesBack * cycleLength));
+      adjustedPeriodStart.setUTCDate(adjustedPeriodStart.getUTCDate() - (cyclesBack * cycleLength));
       const adjustedDays = Math.floor((currentDate - adjustedPeriodStart) / (1000 * 60 * 60 * 24));
       const cycleDay = (adjustedDays % cycleLength) + 1;
       const phaseInfo = getPhaseFromCycleDay(cycleDay, cycleLength, periodLen);
@@ -167,7 +179,7 @@ export const generateCalendarData = (user, month, year) => {
     } else {
       const cycleDay = (daysSincePeriod % cycleLength) + 1;
       const phaseInfo = getPhaseFromCycleDay(cycleDay, cycleLength, periodLen);
-      
+
       calendar.push({
         date: currentDate,
         day: day,
