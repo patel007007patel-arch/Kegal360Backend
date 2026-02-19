@@ -9,10 +9,9 @@ const customLogSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    unique: true // one CustomLog document per user
+    required: true
   },
-  /** Set only on first create; not overwritten by later POST; updatable via PUT */
+  /** Title for this custom log object. Each document has one list (log). */
   customLogTitle: { type: String, default: '' },
   log: [logEntrySchema]
 }, {

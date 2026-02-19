@@ -15,7 +15,7 @@ import VideoProgress from '../models/VideoProgress.model.js';
 import Favorite from '../models/Favorite.model.js';
 import CustomLog from '../models/CustomLog.model.js';
 import CycleSwitchHistory from '../models/CycleSwitchHistory.model.js';
-
+  
 const ADMIN_EMAIL = 'admin@k360.com';
 const ADMIN_PASSWORD = 'admin123';
 const DEMO_PASSWORD = 'demo123';

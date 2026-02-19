@@ -3,6 +3,8 @@ import { getServerUrl } from '../../utils/serverUrl.js';
 
 const LOG_IMAGE_PATH = '/uploads/custom-logs/';
 const MAX_LOG_ENTRIES = 20;
+const MAX_CUSTOM_LOG_TITLE_LENGTH = 200;
+const MAX_ENTRY_TITLE_LENGTH = 500;
 const DEFAULT_MAIN_TITLE = 'CustomeLogs'; // fallback when customLogTitle not set
 
 const getLogImageUrl = (filename) => `${getServerUrl()}${LOG_IMAGE_PATH}${filename}`;
@@ -10,8 +12,7 @@ const getLogImageUrl = (filename) => `${getServerUrl()}${LOG_IMAGE_PATH}${filena
 /**
  * POST /api/custom-logs
  * Form-data: customLogTitle (optional), logTitle1, logimage1, logTitle2, logimage2, ...
- * One CustomLog per user: if exists, append new entries (customLogTitle not overwritten); else create.
- * customLogTitle is saved only on first create; later POSTs do not overwrite it. User can update it via PUT.
+ * Always creates a NEW custom log object (new document) with its own list. Each user can have many.
  */
 export const createCustomLog = async (req, res) => {
   try {
@@ -26,24 +27,25 @@ export const createCustomLog = async (req, res) => {
       const title = req.body[`logTitle${i}`];
       const file = req.files && req.files[`logimage${i}`] && req.files[`logimage${i}`][0];
       if (title === undefined && !file) continue;
+      const entryTitle = title != null ? String(title).trim() : '';
+      if (entryTitle.length > MAX_ENTRY_TITLE_LENGTH) {
+        return res.status(400).json({
+          success: false,
+          message: `logTitle${i} must be at most ${MAX_ENTRY_TITLE_LENGTH} characters`
+        });
+      }
       newEntries.push({
-        logTitle: title != null ? String(title).trim() : '',
+        logTitle: entryTitle,
         logimage: file ? getLogImageUrl(file.filename) : ''
       });
     }
 
-    let customLog = await CustomLog.findOne({ user: userId });
-    if (customLog) {
-      customLog.log.push(...newEntries);
-      await customLog.save();
-    } else {
-      customLog = new CustomLog({
-        user: userId,
-        customLogTitle: customLogTitle || undefined,
-        log: newEntries
-      });
-      await customLog.save();
-    }
+    const customLog = new CustomLog({
+      user: userId,
+      customLogTitle: customLogTitle || undefined,
+      log: newEntries.length ? newEntries : []
+    });
+    await customLog.save();
 
     const mainTitle = (customLog.customLogTitle && customLog.customLogTitle.trim()) ? customLog.customLogTitle : DEFAULT_MAIN_TITLE;
     res.status(201).json({
