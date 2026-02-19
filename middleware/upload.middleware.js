@@ -12,9 +12,12 @@ const assetsDir = path.join(uploadDir, 'assets');
 const videoDir = path.join(assetsDir, 'videos');
 const imageDir = path.join(uploadDir, 'images');
 const thumbnailDir = path.join(assetsDir, 'thumbnails');
+const audioDir = path.join(assetsDir, 'audio');
+const animationDir = path.join(assetsDir, 'animation');
+const assetsImageDir = path.join(assetsDir, 'images');
 const customLogsDir = path.join(uploadDir, 'custom-logs');
 
-[uploadDir, assetsDir, videoDir, imageDir, thumbnailDir, customLogsDir].forEach(dir => {
+[uploadDir, assetsDir, videoDir, imageDir, thumbnailDir, audioDir, animationDir, assetsImageDir, customLogsDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -180,6 +183,61 @@ export const uploadVideoAndThumbnail = multer({
   { name: 'thumbnail', maxCount: 1 }
 ]);
 
+// Media library: video, audio, image, animation – route by mediaType to separate folders
+const mediaTypeToDir = {
+  video: videoDir,
+  audio: audioDir,
+  image: assetsImageDir,
+  animation: animationDir
+};
+const mediaTypeToPrefix = {
+  video: 'video-',
+  audio: 'audio-',
+  image: 'image-',
+  animation: 'animation-'
+};
+const mediaFileFilter = (req, file, cb) => {
+  if (file.fieldname === 'thumbnail') {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    const ok = allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype);
+    return cb(ok ? null : new Error('Thumbnail: only image files allowed'));
+  }
+  const allowed = /mp4|avi|mov|wmv|flv|webm|mp3|wav|m4a|ogg|jpeg|jpg|png|gif|webp/;
+  const ok = allowed.test(path.extname(file.originalname).toLowerCase());
+  if (ok) return cb(null, true);
+  cb(new Error('Media: video, audio, or image files only'));
+};
+
+const mediaAndThumbnailStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (file.fieldname === 'thumbnail') return cb(null, thumbnailDir);
+    const mediaType = (req.body?.mediaType || 'video').toLowerCase();
+    const dir = mediaTypeToDir[mediaType] || videoDir;
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    if (file.fieldname === 'thumbnail') {
+      return cb(null, 'thumbnail-' + uniqueSuffix + ext);
+    }
+    const mediaType = (req.body?.mediaType || 'video').toLowerCase();
+    const prefix = mediaTypeToPrefix[mediaType] || 'video-';
+    cb(null, prefix + uniqueSuffix + ext);
+  }
+});
+
+export const uploadMediaAndThumbnail = multer({
+  storage: mediaAndThumbnailStorage,
+  limits: {
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024
+  },
+  fileFilter: mediaFileFilter
+}).fields([
+  { name: 'video', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 }
+]);
+
 // Require multipart for upload routes to avoid "Unexpected end of form" from busboy
 export const requireMultipart = (req, res, next) => {
   const contentType = String(req.headers['content-type'] || '').toLowerCase();
@@ -209,4 +267,4 @@ export const normalizeVideoUpload = (req, res, next) => {
   next();
 };
 
-export default { uploadVideo, uploadImage, uploadThumbnail, uploadVideoAndThumbnail, uploadCustomLogImages, uploadCustomLogCreate, uploadCustomLogSingleImage, uploadCustomLogBatchUpdate };
+export default { uploadVideo, uploadImage, uploadThumbnail, uploadVideoAndThumbnail, uploadMediaAndThumbnail, uploadCustomLogImages, uploadCustomLogCreate, uploadCustomLogSingleImage, uploadCustomLogBatchUpdate };

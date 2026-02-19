@@ -3,31 +3,54 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import Media from '../../models/Media.model.js';
 import Step from '../../models/Step.model.js';
+import { getServerUrl } from '../../utils/serverUrl.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '../..');
 const uploadsDir = path.join(projectRoot, 'uploads');
 
+// URL path prefixes per media type (same pattern as custom-log images)
+const MEDIA_PATHS = {
+  video: '/uploads/assets/videos/',
+  audio: '/uploads/assets/audio/',
+  image: '/uploads/assets/images/',
+  animation: '/uploads/assets/animation/'
+};
+const MEDIA_THUMBNAIL_PATH = '/uploads/assets/thumbnails/';
+
+/** Build full URL for media file (video/audio/image/animation or thumbnail), like custom-log images. */
+function getMediaFileUrl(multerFile, type, mediaType = 'video') {
+  if (!multerFile?.filename) return null;
+  const base = getServerUrl();
+  const pathPrefix = type === 'thumbnail'
+    ? MEDIA_THUMBNAIL_PATH
+    : (MEDIA_PATHS[mediaType] || MEDIA_PATHS.video);
+  return `${base}${pathPrefix}${multerFile.filename}`;
+}
+
 /**
  * Resolve stored filePath/thumbnail to a local filesystem path and delete the file if it exists.
- * Used for all media types: video, audio, image, animation.
- * Handles: absolute paths, relative paths (/uploads/... or uploads/...), and skips full URLs.
+ * Handles: full URLs (same as stored for images), absolute paths, relative paths.
  */
 function deleteFileIfExists(storedPath) {
   if (!storedPath || typeof storedPath !== 'string' || !storedPath.trim()) return;
   const trimmed = storedPath.trim();
-  // Skip full URLs (cannot delete remote files)
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return;
   let localPath;
-  if (path.isAbsolute(trimmed)) {
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    try {
+      const u = new URL(trimmed);
+      const pathname = u.pathname.replace(/^\/+/, '');
+      localPath = path.join(projectRoot, pathname);
+    } catch {
+      return;
+    }
+  } else if (path.isAbsolute(trimmed)) {
     localPath = trimmed;
   } else {
-    // Relative: e.g. /uploads/assets/videos/foo.mp4 or uploads/assets/videos/foo.mp4
     const relative = trimmed.replace(/^\/+/, '');
     localPath = path.join(projectRoot, relative);
   }
-  // Safety: only delete files under project's uploads directory
   const resolved = path.resolve(localPath);
   const uploadsResolved = path.resolve(uploadsDir);
   const relative = path.relative(uploadsResolved, resolved);
@@ -134,12 +157,13 @@ export const createMedia = async (req, res) => {
       }
     }
 
+    const mediaTypeNorm = (mediaType || 'video').toLowerCase();
     const media = await Media.create({
       title,
       description,
-      mediaType,
-      filePath: filePath || (req.file ? req.file.path : null),
-      thumbnail: thumbnail || (req.files?.thumbnail?.[0]?.path || null),
+      mediaType: mediaTypeNorm,
+      filePath: filePath || (req.file ? getMediaFileUrl(req.file, 'main', mediaTypeNorm) : null),
+      thumbnail: thumbnail || (req.files?.thumbnail?.[0] ? getMediaFileUrl(req.files.thumbnail[0], 'thumbnail') : null),
       duration: parseInt(duration) || 0,
       orientation: orientation || 'portrait',
       instructor: instructor || {},
@@ -189,12 +213,13 @@ export const updateMedia = async (req, res) => {
       ...(isActive !== undefined && { isActive })
     };
 
-    // Handle file uploads if present
+    // Handle file uploads if present (store full URL like images, per media type)
+    const updateMediaType = (req.body.mediaType || 'video').toLowerCase();
     if (req.file) {
-      updateData.filePath = req.file.path;
+      updateData.filePath = getMediaFileUrl(req.file, 'main', updateMediaType);
     }
     if (req.files?.thumbnail?.[0]) {
-      updateData.thumbnail = req.files.thumbnail[0].path;
+      updateData.thumbnail = getMediaFileUrl(req.files.thumbnail[0], 'thumbnail');
     }
 
     const media = await Media.findByIdAndUpdate(
