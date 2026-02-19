@@ -1,5 +1,45 @@
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import Media from '../../models/Media.model.js';
 import Step from '../../models/Step.model.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.join(__dirname, '../..');
+const uploadsDir = path.join(projectRoot, 'uploads');
+
+/**
+ * Resolve stored filePath/thumbnail to a local filesystem path and delete the file if it exists.
+ * Used for all media types: video, audio, image, animation.
+ * Handles: absolute paths, relative paths (/uploads/... or uploads/...), and skips full URLs.
+ */
+function deleteFileIfExists(storedPath) {
+  if (!storedPath || typeof storedPath !== 'string' || !storedPath.trim()) return;
+  const trimmed = storedPath.trim();
+  // Skip full URLs (cannot delete remote files)
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return;
+  let localPath;
+  if (path.isAbsolute(trimmed)) {
+    localPath = trimmed;
+  } else {
+    // Relative: e.g. /uploads/assets/videos/foo.mp4 or uploads/assets/videos/foo.mp4
+    const relative = trimmed.replace(/^\/+/, '');
+    localPath = path.join(projectRoot, relative);
+  }
+  // Safety: only delete files under project's uploads directory
+  const resolved = path.resolve(localPath);
+  const uploadsResolved = path.resolve(uploadsDir);
+  const relative = path.relative(uploadsResolved, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return;
+  try {
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+      fs.unlinkSync(resolved);
+    }
+  } catch (err) {
+    console.warn('Could not delete media file:', resolved, err.message);
+  }
+}
 
 // Get all media (Video Library)
 export const getAllMedia = async (req, res) => {
@@ -203,6 +243,10 @@ export const deleteMedia = async (req, res) => {
         message: `Cannot delete media. It is being used in ${usageCount} step(s). Please remove it from all steps first.`
       });
     }
+
+    // Delete main file (video/audio/image/animation) and thumbnail from disk for all media types
+    deleteFileIfExists(media.filePath);
+    deleteFileIfExists(media.thumbnail);
 
     await Media.findByIdAndDelete(req.params.id);
 
