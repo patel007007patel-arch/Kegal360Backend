@@ -1,10 +1,13 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
 import createGiftSubscription from '../controllers/gift.controller/create.controller.js';
 import redeemGiftSubscription from '../controllers/gift.controller/redeem.controller.js';
 import { getMyGifts, getGiftById, getGiftsByCode } from '../controllers/gift.controller/get.controller.js';
 
 const router = express.Router();
+
+router.param('id', validateObjectIdParam('id'));
 
 // Public routes - can gift without login
 router.post('/', createGiftSubscription); // Can be called with or without auth

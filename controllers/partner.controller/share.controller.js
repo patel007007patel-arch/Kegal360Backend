@@ -1,4 +1,102 @@
 import User from '../../models/User.model.js';
+import Log from '../../models/Log.model.js';
+import Cycle from '../../models/Cycle.model.js';
+import { calculateCyclePredictions, generateCalendarData } from '../../services/cycleCalculation.service.js';
+
+/**
+ * Build home-style response for a given user (used for partner shared view).
+ * Same shape as GET /api/cycles/home.
+ */
+async function buildHomeDataForUser(user) {
+  const baseResponse = {
+    user: {
+      id: user._id,
+      name: user.name || user.email?.split('@')[0] || 'User'
+    },
+    hasLog: false
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const todayLog = await Log.findOne({ user: user._id, date: { $gte: today, $lt: tomorrow } });
+  baseResponse.hasLog = !!todayLog;
+
+  if (!user.trackCycle || user.cycleType === 'absent') {
+    const UserProgress = (await import('../../models/UserProgress.model.js')).default;
+    const weekStart = new Date(today);
+    weekStart.setDate(weekStart.getDate() - 7);
+    weekStart.setHours(0, 0, 0, 0);
+    const progressDocs = await UserProgress.find({
+      user: user._id,
+      sessionStartedAt: { $gte: weekStart }
+    }).select('sessionStartedAt sessionCompletedAt').lean();
+    const activeDaySet = new Set();
+    progressDocs.forEach((p) => {
+      if (p.sessionStartedAt) activeDaySet.add(new Date(p.sessionStartedAt).toDateString());
+    });
+    const activeDays = activeDaySet.size;
+    const restDays = Math.max(0, 7 - activeDays);
+    return {
+      ...baseResponse,
+      mode: 'wellness',
+      phaseName: 'Wellness Mode',
+      phase: 'wellness',
+      phaseDisplayLabel: 'Cycle tracking off Wellness Mode',
+      cycleInfo: null,
+      wellnessStats: { yogaSessionsThisWeek: progressDocs.length, activeDays, restDays }
+    };
+  }
+
+  if (user.cycleType === 'irregular') {
+    const lastPeriodDaysAgo = user.lastPeriodStart
+      ? Math.floor((today - new Date(user.lastPeriodStart)) / (1000 * 60 * 60 * 24))
+      : null;
+    const pastCycles = await Cycle.find({ user: user._id }).sort({ startDate: -1 }).limit(12).select('cycleLength').lean();
+    const avgCycle = pastCycles.length
+      ? Math.round(pastCycles.reduce((s, c) => s + (c.cycleLength || 0), 0) / pastCycles.length)
+      : null;
+    const cycleRange = user.cycleLengthRange ? `${user.cycleLengthRange.min}-${user.cycleLengthRange.max}` : null;
+    return {
+      ...baseResponse,
+      mode: 'irregular',
+      phaseName: 'Irregular Mode',
+      phase: 'irregular',
+      cycleInfo: {
+        cycleRange: cycleRange || null,
+        lastPeriod: lastPeriodDaysAgo != null ? `${lastPeriodDaysAgo} days ago` : null,
+        averageCycle: avgCycle != null ? avgCycle : null
+      },
+      wellnessStats: null
+    };
+  }
+
+  const predictions = calculateCyclePredictions(user);
+  const phase = predictions.currentPhase?.phase || null;
+  const phaseName = predictions.currentPhase?.phaseName === 'Period' ? 'Period' : (predictions.currentPhase?.phaseName || 'Unknown');
+  const phaseDisplayLabel = phaseName !== 'Unknown' ? `Current Phase ${phaseName}` : 'Current Phase';
+  const cycleDayNumber = predictions.cycleDay ?? null;
+  const nextPeriodDays = predictions.nextPeriod?.daysUntil ?? null;
+  const nextOvulationDays = predictions.nextOvulation?.daysUntil ?? null;
+
+  return {
+    ...baseResponse,
+    mode: 'regular',
+    phaseName,
+    phase,
+    phaseDisplayLabel,
+    cycleInfo: {
+      yourCycleDay: cycleDayNumber != null ? cycleDayNumber : null,
+      yourCycleDayLabel: cycleDayNumber != null ? `Day ${cycleDayNumber}` : null,
+      nextPeriod: nextPeriodDays != null ? `In ${nextPeriodDays} days` : null,
+      nextPeriodDays,
+      nextOvulation: nextOvulationDays != null ? `In ${nextOvulationDays} days` : null,
+      nextOvulationDays
+    },
+    wellnessStats: null
+  };
+}
 
 export const generateShareCode = async (req, res) => {
   try {
@@ -82,17 +180,15 @@ export const connectPartner = async (req, res) => {
       });
     }
 
-    // Update current user to share with partner
+    // Connector (current user) can now see code owner's data via GET /partners/shared
     const user = await User.findById(userId);
-    
-    if (!user.sharedWith.includes(partner._id)) {
-      user.sharedWith.push(partner._id);
-      await user.save();
-    }
+    user.sharedBy = partner._id;
+    await user.save();
 
-    // Update partner to be shared by current user
-    if (!partner.sharedBy) {
-      partner.sharedBy = userId;
+    // Code owner: track who is viewing their data (optional, for "shared with" list)
+    if (!partner.sharedWith) partner.sharedWith = [];
+    if (!partner.sharedWith.some(id => id.toString() === userId.toString())) {
+      partner.sharedWith.push(userId);
       await partner.save();
     }
 
@@ -117,6 +213,10 @@ export const connectPartner = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/partners/shared
+ * Returns only home-style data for the connected partner (same shape as GET /api/cycles/home).
+ */
 export const getSharedData = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -129,33 +229,18 @@ export const getSharedData = async (req, res) => {
       });
     }
 
-    // Get partner's cycle data
-    const Log = (await import('../../models/Log.model.js')).default;
-    const Cycle = (await import('../../models/Cycle.model.js')).default;
-    const { calculateCyclePredictions } = await import('../../services/cycleCalculation.service.js');
-
-    const partnerLogs = await Log.find({ user: user.sharedBy._id })
-      .sort({ date: -1 })
-      .limit(30);
-
-    const partnerCycles = await Cycle.find({ user: user.sharedBy._id })
-      .sort({ startDate: -1 })
-      .limit(12);
-
-    // Calculate partner's current cycle info
-    const partnerPredictions = calculateCyclePredictions(user.sharedBy);
+    const partner = user.sharedBy;
+    const homeData = await buildHomeDataForUser(partner);
 
     res.json({
       success: true,
       data: {
         partner: {
-          id: user.sharedBy._id,
-          name: user.sharedBy.name,
-          email: user.sharedBy.email
+          id: partner._id,
+          name: partner.name,
+          email: partner.email
         },
-        logs: partnerLogs,
-        cycles: partnerCycles,
-        currentCycle: partnerPredictions
+        ...homeData
       }
     });
   } catch (error) {
@@ -163,6 +248,193 @@ export const getSharedData = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching shared data',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * GET /api/partners/calendar/enhanced
+ * Same as GET /api/cycles/calendar/enhanced but for the connected partner only (no partnerCode needed).
+ * Query: month, year, phase, type (mood | flow | notes | all). Requires user to be connected.
+ */
+export const getPartnerCalendarEnhanced = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId).populate('sharedBy');
+    if (!user.sharedBy) {
+      return res.status(404).json({
+        success: false,
+        message: 'No partner connected'
+      });
+    }
+
+    const partner = user.sharedBy;
+    const targetUserId = partner._id;
+    const { month, year, phase, type } = req.query;
+
+    const yearNum = parseInt(year) || new Date().getFullYear();
+    const hasMonth = month !== undefined && month !== '';
+    const monthNum = hasMonth ? parseInt(month) : new Date().getMonth() + 1;
+
+    const userCycleInfo = {
+      cycleType: partner.cycleType,
+      cycleLength: partner.cycleType === 'regular' ? partner.cycleLength : partner.cycleLengthRange,
+      lastPeriodStart: partner.lastPeriodStart
+    };
+
+    const includeAllLogFields = !type || type === 'all';
+    const includeMood = includeAllLogFields || type === 'mood';
+    const includeFlow = includeAllLogFields || type === 'flow';
+    const includeNotes = includeAllLogFields || type === 'notes';
+
+    const mergeLogIntoDay = (dayInfo, log, opts) => {
+      if (!log) return;
+      const { includeMood, includeFlow, includeNotes } = opts;
+      if (includeMood && log.mood) dayInfo.mood = log.mood;
+      if (includeFlow) {
+        if (log.flow) dayInfo.flow = log.flow;
+        if (log.flowIntensity) dayInfo.flowIntensity = log.flowIntensity;
+      }
+      if (includeNotes && log.notes) dayInfo.notes = log.notes;
+      if (includeAllLogFields && log.temperature) dayInfo.temperature = log.temperature;
+      if (log.phase) {
+        dayInfo.phase = log.phase;
+        dayInfo.phaseName = log.phase === 'period' ? 'Menstrual' : (log.phase.charAt(0).toUpperCase() + log.phase.slice(1));
+      }
+    };
+
+    const partnerInfo = { id: partner._id, name: partner.name, partnerCode: partner.partnerCode };
+
+    if (!hasMonth && year) {
+      const months = [];
+      for (let m = 1; m <= 12; m++) {
+        const calendarData = generateCalendarData(partner, m, yearNum);
+        const startDate = new Date(Date.UTC(yearNum, m - 1, 1));
+        const endDate = new Date(Date.UTC(yearNum, m, 0, 23, 59, 59, 999));
+        let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
+        if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
+        const logs = await Log.find(logQuery).sort({ date: 1 });
+        const enhancedCalendar = calendarData.calendar.map(dayData => {
+          const log = logs.find(l => {
+            const d = new Date(l.date);
+            return d.getUTCDate() === dayData.day && d.getUTCMonth() === m - 1 && d.getUTCFullYear() === yearNum;
+          });
+          const dayInfo = {
+            date: dayData.date,
+            day: dayData.day,
+            cycleDay: dayData.cycleDay,
+            phase: dayData.phase,
+            phaseName: dayData.phaseName,
+            isPeriod: dayData.isPeriod,
+            hasLog: !!log
+          };
+          mergeLogIntoDay(dayInfo, log, { includeMood, includeFlow, includeNotes });
+          return dayInfo;
+        });
+        const cycles = await Cycle.find({
+          user: targetUserId,
+          startDate: { $lte: endDate },
+          endDate: { $gte: startDate }
+        });
+        months.push({ month: m, year: yearNum, calendar: enhancedCalendar, phases: calendarData.phases, cycles });
+      }
+      return res.json({
+        success: true,
+        data: { months, year: yearNum, userCycleInfo, partner: partnerInfo }
+      });
+    }
+
+    const calendarData = generateCalendarData(partner, monthNum, yearNum);
+    const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1));
+    const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59, 999));
+    let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
+    if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
+    const logs = await Log.find(logQuery).sort({ date: 1 });
+
+    const enhancedCalendar = calendarData.calendar.map(dayData => {
+      const log = logs.find(l => {
+        const logDate = new Date(l.date);
+        return logDate.getUTCDate() === dayData.day &&
+               logDate.getUTCMonth() === monthNum - 1 &&
+               logDate.getUTCFullYear() === yearNum;
+      });
+      const dayInfo = {
+        date: dayData.date,
+        day: dayData.day,
+        cycleDay: dayData.cycleDay,
+        phase: dayData.phase,
+        phaseName: dayData.phaseName,
+        isPeriod: dayData.isPeriod,
+        hasLog: !!log
+      };
+      mergeLogIntoDay(dayInfo, log, { includeMood, includeFlow, includeNotes });
+      return dayInfo;
+    });
+
+    const cycles = await Cycle.find({
+      user: targetUserId,
+      startDate: { $lte: endDate },
+      endDate: { $gte: startDate }
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        calendar: enhancedCalendar,
+        phases: calendarData.phases,
+        cycles,
+        month: monthNum,
+        year: yearNum,
+        userCycleInfo,
+        partner: partnerInfo
+      }
+    });
+  } catch (error) {
+    console.error('Get partner calendar enhanced error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error fetching partner calendar',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * POST /api/partners/disconnect (or DELETE)
+ * Revoke the connected partner. After this, GET /partners/shared and calendar will return "No partner connected"
+ * until the user connects again with the partner code.
+ */
+export const disconnectPartner = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+    if (!user.sharedBy) {
+      return res.status(404).json({
+        success: false,
+        message: 'No partner connected'
+      });
+    }
+
+    const partnerId = user.sharedBy;
+    user.sharedBy = undefined;
+    await user.save();
+
+    const partner = await User.findById(partnerId);
+    if (partner && partner.sharedWith && partner.sharedWith.length) {
+      partner.sharedWith = partner.sharedWith.filter(id => id.toString() !== userId.toString());
+      await partner.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Partner disconnected. Connect again with their code to see their data.'
+    });
+  } catch (error) {
+    console.error('Disconnect partner error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error disconnecting partner',
       error: error.message
     });
   }
@@ -346,4 +618,4 @@ export const purchaseSubscriptionForPartner = async (req, res) => {
   }
 };
 
-export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, viewPartnerByCode, purchaseSubscriptionForPartner };
+export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, getPartnerCalendarEnhanced, disconnectPartner, viewPartnerByCode, purchaseSubscriptionForPartner };

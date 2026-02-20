@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
 import { uploadVideo } from '../middleware/upload.middleware.js';
 import uploadVideoController from '../controllers/video.controller/upload.controller.js';
 import { getVideos, getVideoById } from '../controllers/video.controller/getVideos.controller.js';
@@ -8,6 +9,8 @@ import { updateProgress, getProgress } from '../controllers/video.controller/pro
 const router = express.Router();
 
 router.use(authenticate);
+router.param('id', validateObjectIdParam('id'));
+router.param('videoId', validateObjectIdParam('videoId'));
 
 // Get videos
 router.get('/', getVideos);

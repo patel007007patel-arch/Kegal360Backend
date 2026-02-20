@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
+import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
 import { uploadVideoAndThumbnail, uploadMediaAndThumbnail, requireMultipart, normalizeVideoUpload } from '../middleware/upload.middleware.js';
 import { getAllUsers, getUserById, createUser, updateUser, deleteUser } from '../controllers/admin.controller/users.controller.js';
 import { getDashboardStats } from '../controllers/admin.controller/dashboard.controller.js';
@@ -19,6 +20,7 @@ const router = express.Router();
 // All admin routes require authentication and admin role
 router.use(authenticate);
 router.use(authorize('admin'));
+router.param('id', validateObjectIdParam('id'));
 
 // Admin Profile & Settings
 router.get('/profile', getAdminProfile);

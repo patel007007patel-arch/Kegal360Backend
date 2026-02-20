@@ -1,11 +1,13 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
 import { createNotification } from '../controllers/notification.controller/create.controller.js';
 import { getNotifications, markAsRead, markAllAsRead, updateNotification, deleteNotification } from '../controllers/notification.controller/get.controller.js';
 
 const router = express.Router();
 
 router.use(authenticate);
+router.param('id', validateObjectIdParam('id'));
 
 router.post('/', createNotification);
 router.get('/', getNotifications);

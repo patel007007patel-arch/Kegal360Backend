@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requireMultipart, uploadCustomLogCreate, uploadCustomLogSingleImage, uploadCustomLogBatchUpdate } from '../middleware/upload.middleware.js';
+import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
 import createCustomLog from '../controllers/customLog.controller/create.controller.js';
 import {
   getCustomLogs,
@@ -15,6 +16,8 @@ import {
 const router = express.Router();
 
 router.use(authenticate);
+router.param('id', validateObjectIdParam('id'));
+router.param('entryId', validateObjectIdParam('entryId'));
 
 router.post('/', requireMultipart, uploadCustomLogCreate, createCustomLog);
 router.get('/', getCustomLogs);

@@ -1,8 +1,12 @@
 import CustomLog from '../../models/CustomLog.model.js';
 import { getServerUrl } from '../../utils/serverUrl.js';
+import { isValidObjectId } from '../../utils/validateObjectId.js';
 
 const DEFAULT_MAIN_TITLE = 'CustomeLogs'; // fallback when customLogTitle not set
 const MAX_ENTRIES_BATCH = 20;
+const MAX_CUSTOM_LOG_TITLE_LENGTH = 200;
+const MAX_ENTRY_TITLE_LENGTH = 500;
+
 const LOG_IMAGE_PATH = '/uploads/custom-logs/';
 const getLogImageUrl = (filename) => `${getServerUrl()}${LOG_IMAGE_PATH}${filename}`;
 const toFullImageUrl = (value) => {

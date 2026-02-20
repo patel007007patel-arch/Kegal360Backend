@@ -1,16 +1,21 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
 import {
   getSessionsByPhase,
   getSessionDetails,
   getAllSessions
 } from '../controllers/session.controller.js';
- import {
+import {
   getStepsBySession,
   getStepById
 } from '../controllers/step.controller.js';
 
 const router = express.Router();
+
+router.param('id', validateObjectIdParam('id'));
+router.param('sessionId', validateObjectIdParam('sessionId'));
+router.param('stepId', validateObjectIdParam('stepId'));
 
 // Public routes (no auth required for browsing)
 router.get('/phase', getSessionsByPhase);

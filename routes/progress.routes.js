@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
 import {
   startSession,
   completeStep,
@@ -12,6 +13,7 @@ const router = express.Router();
 
 // All routes require authentication
 router.use(authenticate);
+router.param('sessionId', validateObjectIdParam('sessionId'));
 
 router.post('/start', startSession);
 router.post('/step/complete', completeStep);

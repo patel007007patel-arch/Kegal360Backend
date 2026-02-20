@@ -12,7 +12,17 @@ export const getProfile = async (req, res) => {
       });
     }
 
-    const data = { user };
+    // Build user object for response: include partnerCode only if registered for "myself" and onboarding completed
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    const includePartnerCode = user.onboardingCompleted && user.appFor === 'myself';
+    if (!includePartnerCode && userObj.partnerCode !== undefined) {
+      delete userObj.partnerCode;
+    }
+    if (includePartnerCode && userObj.partnerCode) {
+      userObj.shareLink = `${process.env.FRONTEND_URL || ''}/connect?code=${userObj.partnerCode}`;
+    }
+
+    const data = { user: userObj };
 
     // Jill's Cycle Insights: cycle range, average cycle length, period range, average period length
     if (user.trackCycle && user.cycleType !== 'absent') {
@@ -74,11 +84,20 @@ export const updateProfile = async (req, res) => {
       { new: true }
     ).select('-password');
 
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    const includePartnerCode = user.onboardingCompleted && user.appFor === 'myself';
+    if (!includePartnerCode && userObj.partnerCode !== undefined) {
+      delete userObj.partnerCode;
+    }
+    if (includePartnerCode && userObj.partnerCode) {
+      userObj.shareLink = `${process.env.FRONTEND_URL || ''}/connect?code=${userObj.partnerCode}`;
+    }
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
       data: {
-        user
+        user: userObj
       }
     });
   } catch (error) {
