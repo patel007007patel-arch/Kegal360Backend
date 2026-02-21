@@ -1,5 +1,7 @@
 import Log from '../../models/Log.model.js';
 import User from '../../models/User.model.js';
+import { resolveCustomLogsForLog, resolveCustomLogsForLogs } from '../../utils/resolveLogCustomLogs.js';
+import { getUtcDayRange, getUtcMonthRange } from '../../utils/dateUtils.js';
 
 /**
  * Helper function to resolve target user ID from partner code
@@ -52,12 +54,8 @@ export const getLogs = async (req, res) => {
         $lte: new Date(endDate)
       };
     } else if (month && year) {
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0, 23, 59, 59);
-      query.date = {
-        $gte: start,
-        $lte: end
-      };
+      const { start, end } = getUtcMonthRange(year, month);
+      query.date = { $gte: start, $lte: end };
     }
 
     if (phase) {
@@ -65,9 +63,11 @@ export const getLogs = async (req, res) => {
       query.phase = phase === 'menstrual' ? 'period' : phase;
     }
 
-    const logs = await Log.find(query)
+    let logs = await Log.find(query)
       .sort({ date: -1 })
       .lean();
+
+    await resolveCustomLogsForLogs(logs, targetUserId);
 
     res.json({
       success: true,
@@ -101,15 +101,14 @@ export const getLogByDate = async (req, res) => {
     // Resolve target user (self or partner)
     const { targetUserId, partnerInfo } = await resolvePartnerAccess(currentUserId, partnerCode);
 
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
+    const { start: dayStart, end: dayEnd } = getUtcDayRange(date);
 
-    const log = await Log.findOne({
+    let log = await Log.findOne({
       user: targetUserId,
       date: { $gte: dayStart, $lt: dayEnd }
     }).lean();
+
+    if (log) await resolveCustomLogsForLog(log, targetUserId);
 
     res.json({
       success: true,
@@ -132,10 +131,11 @@ export const getLogByDate = async (req, res) => {
 export const getLogById = async (req, res) => {
   try {
     const { id } = req.params;
-    const log = await Log.findOne({
+    const userId = req.user._id;
+    let log = await Log.findOne({
       _id: id,
-      user: req.user._id
-    });
+      user: userId
+    }).lean();
 
     if (!log) {
       return res.status(404).json({
@@ -143,6 +143,8 @@ export const getLogById = async (req, res) => {
         message: 'Log not found'
       });
     }
+
+    await resolveCustomLogsForLog(log, userId);
 
     res.json({
       success: true,

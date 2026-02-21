@@ -1,0 +1,130 @@
+{
+  "info": {
+    "name": "Kegal360 - Log Create & Update",
+    "description": "Create and update daily logs (POST /api/logs). Uses customLogs as customLogId + entryIds. Same endpoint creates or updates by date.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "logDate", "value": "2026-01-15" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"yourpassword\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Log Create & Update",
+      "item": [
+        {
+          "name": "Create Log (or Update if date exists)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{logDate}}\",\n  \"flow\": \"medium\",\n  \"flowIntensity\": \"B\",\n  \"mood\": [\"calm\", \"energetic\"],\n  \"symptoms\": [\"cramps\", \"bloating\"],\n  \"phase\": \"follicular\",\n  \"temperature\": { \"value\": 97.5, \"unit\": \"fahrenheit\" },\n  \"notes\": \"Cramps in the morning\",\n  \"customLogs\": [\n    { \"customLogId\": \"507f1f77bcf86cd799439011\", \"entryIds\": [\"507f1f77bcf86cd799439012\", \"507f1f77bcf86cd799439013\"] },\n    { \"customLogId\": \"507f1f77bcf86cd799439020\", \"entryIds\": [\"507f1f77bcf86cd799439021\"] }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/logs",
+            "description": "**Creates** a log for the given date, or **updates** if a log already exists for that date.\n\n- **date** (required): YYYY-MM-DD\n- **customLogs**: array of `{ customLogId, entryIds }` — use IDs from GET /api/custom-logs. Replace with your real customLogId and entryIds."
+          }
+        },
+        {
+          "name": "Create Log (minimal – date only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{logDate}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logs",
+            "description": "Minimal body: only date. All other fields optional."
+          }
+        },
+        {
+          "name": "Update Log (same date – change fields)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{logDate}}\",\n  \"phase\": \"period\",\n  \"flow\": \"heavy\",\n  \"notes\": \"Updated notes\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logs",
+            "description": "Send same date with only the fields you want to change. Existing log for that date is updated."
+          }
+        },
+        {
+          "name": "Get Log by date",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/logs/by-date?date={{logDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "logs", "by-date"],
+              "query": [{ "key": "date", "value": "{{logDate}}" }]
+            },
+            "description": "Returns the log for the given date (or null). Response includes resolved customLogs."
+          }
+        },
+        {
+          "name": "Get Logs (month)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/logs?month=1&year=2026",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "logs"],
+              "query": [
+                { "key": "month", "value": "1" },
+                { "key": "year", "value": "2026" },
+                { "key": "phase", "value": "", "disabled": true }
+              ]
+            },
+            "description": "List logs for a month. Each log has resolved customLogs."
+          }
+        }
+      ]
+    }
+  ]
+}

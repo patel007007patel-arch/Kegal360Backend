@@ -37,6 +37,11 @@ const logSchema = new mongoose.Schema({
     type: String,
     enum: ['period', 'follicular', 'ovulation', 'luteal', 'missed', 'late', 'unsure', 'clear']
   },
+  // Marked as period day via add-period API (only this field is set when adding/removing period day on existing log)
+  isPeriod: {
+    type: Boolean,
+    default: false
+  },
   // Temperature
   temperature: {
     value: Number,
@@ -48,11 +53,10 @@ const logSchema = new mongoose.Schema({
   },
   // Notes
   notes: String,
-  // Custom logs
+  // Custom logs: references to user's CustomLog documents and selected entry ids
   customLogs: [{
-    logName: String,
-    icon: String,
-    value: String
+    customLogId: { type: mongoose.Schema.Types.ObjectId, ref: 'CustomLog' },
+    entryIds: [{ type: mongoose.Schema.Types.ObjectId }]
   }]
 }, {
   timestamps: true

@@ -2,6 +2,7 @@ import User from '../../models/User.model.js';
 import Log from '../../models/Log.model.js';
 import Cycle from '../../models/Cycle.model.js';
 import { calculateCyclePredictions } from '../../services/cycleCalculation.service.js';
+import { getUtcToday, addDaysUtc } from '../../utils/dateUtils.js';
 
 /**
  * GET /api/cycles/home
@@ -36,19 +37,15 @@ export const getHomeData = async (req, res) => {
       hasLog: false
     };
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const today = getUtcToday();
+    const tomorrow = addDaysUtc(today, 1);
     const todayLog = await Log.findOne({ user: userId, date: { $gte: today, $lt: tomorrow } });
     baseResponse.hasLog = !!todayLog;
 
     // Wellness mode: cycle tracking off or cycleType absent
     if (!user.trackCycle || user.cycleType === 'absent') {
       const UserProgress = (await import('../../models/UserProgress.model.js')).default;
-      const weekStart = new Date(today);
-      weekStart.setDate(weekStart.getDate() - 7);
-      weekStart.setHours(0, 0, 0, 0);
+      const weekStart = addDaysUtc(today, -7);
 
       // Get all sessions started in the last week
       const progressDocs = await UserProgress.find({

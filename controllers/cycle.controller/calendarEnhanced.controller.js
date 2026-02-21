@@ -2,6 +2,8 @@ import Log from '../../models/Log.model.js';
 import Cycle from '../../models/Cycle.model.js';
 import User from '../../models/User.model.js';
 import { generateCalendarData } from '../../services/cycleCalculation.service.js';
+import { resolveCustomLogsForLogs } from '../../utils/resolveLogCustomLogs.js';
+import { toUtcDateKey, getUtcMonthRange } from '../../utils/dateUtils.js';
 
 /**
  * Helper function to resolve target user ID from partner code
@@ -88,6 +90,9 @@ export const getEnhancedCalendar = async (req, res) => {
         dayInfo.phase = log.phase;
         dayInfo.phaseName = log.phase === 'period' ? 'Menstrual' : (log.phase.charAt(0).toUpperCase() + log.phase.slice(1));
       }
+      if (log.customLogs && log.customLogs.length > 0) {
+        dayInfo.customLogs = log.customLogs;
+      }
     };
 
     if (!hasMonth && year) {
@@ -95,16 +100,14 @@ export const getEnhancedCalendar = async (req, res) => {
       const months = [];
       for (let m = 1; m <= 12; m++) {
         const calendarData = generateCalendarData(user, m, yearNum);
-        const startDate = new Date(Date.UTC(yearNum, m - 1, 1));
-        const endDate = new Date(Date.UTC(yearNum, m, 0, 23, 59, 59, 999));
+        const { start: startDate, end: endDate } = getUtcMonthRange(yearNum, m);
         let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
         if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
-        const logs = await Log.find(logQuery).sort({ date: 1 });
+        let logs = await Log.find(logQuery).sort({ date: 1 }).lean();
+        await resolveCustomLogsForLogs(logs, targetUserId);
         const enhancedCalendar = calendarData.calendar.map(dayData => {
-          const log = logs.find(l => {
-            const d = new Date(l.date);
-            return d.getUTCDate() === dayData.day && d.getUTCMonth() === m - 1 && d.getUTCFullYear() === yearNum;
-          });
+          const dayKey = toUtcDateKey(dayData.date);
+          const log = logs.find(l => toUtcDateKey(l.date) === dayKey);
           const dayInfo = {
             date: dayData.date,
             day: dayData.day,
@@ -137,19 +140,15 @@ export const getEnhancedCalendar = async (req, res) => {
 
     // Single-month view (UTC range so calendar and logs align with settings)
     const calendarData = generateCalendarData(user, monthNum, yearNum);
-    const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1));
-    const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59, 999));
+    const { start: startDate, end: endDate } = getUtcMonthRange(yearNum, monthNum);
     let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
     if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
-    const logs = await Log.find(logQuery).sort({ date: 1 });
+    let logs = await Log.find(logQuery).sort({ date: 1 }).lean();
+    await resolveCustomLogsForLogs(logs, targetUserId);
 
     const enhancedCalendar = calendarData.calendar.map(dayData => {
-      const log = logs.find(l => {
-        const logDate = new Date(l.date);
-        return logDate.getUTCDate() === dayData.day &&
-               logDate.getUTCMonth() === monthNum - 1 &&
-               logDate.getUTCFullYear() === yearNum;
-      });
+      const dayKey = toUtcDateKey(dayData.date);
+      const log = logs.find(l => toUtcDateKey(l.date) === dayKey);
       const dayInfo = {
         date: dayData.date,
         day: dayData.day,

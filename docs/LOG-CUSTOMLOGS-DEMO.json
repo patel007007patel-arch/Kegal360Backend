@@ -1,0 +1,42 @@
+{
+  "description": "Log customLogs: store by customLogId + entryIds; GET returns resolved custom log and entries.",
+  "post_create_or_update_log_body": {
+    "date": "2026-01-15",
+    "flow": "medium",
+    "flowIntensity": "B",
+    "mood": ["calm", "energetic"],
+    "symptoms": ["cramps", "bloating"],
+    "phase": "follicular",
+    "temperature": { "value": 97.5, "unit": "fahrenheit" },
+    "notes": "Cramps in the morning",
+    "customLogs": [
+      {
+        "customLogId": "507f1f77bcf86cd799439011",
+        "entryIds": ["507f1f77bcf86cd799439012", "507f1f77bcf86cd799439013"]
+      },
+      {
+        "customLogId": "507f1f77bcf86cd799439020",
+        "entryIds": ["507f1f77bcf86cd799439021"]
+      }
+    ]
+  },
+  "get_log_response_customLogs_section": {
+    "customLogs": [
+      {
+        "customLogId": "507f1f77bcf86cd799439011",
+        "mainTitle": "Weight",
+        "entries": [
+          { "id": "507f1f77bcf86cd799439012", "logTitle": "60 kg", "logimage": "http://localhost:5000/uploads/custom-logs/abc.png" },
+          { "id": "507f1f77bcf86cd799439013", "logTitle": "Morning", "logimage": "" }
+        ]
+      },
+      {
+        "customLogId": "507f1f77bcf86cd799439020",
+        "mainTitle": "Symptoms",
+        "entries": [
+          { "id": "507f1f77bcf86cd799439021", "logTitle": "Headache", "logimage": "" }
+        ]
+      }
+    ]
+  }
+}

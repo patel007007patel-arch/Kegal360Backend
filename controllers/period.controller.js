@@ -1,9 +1,13 @@
 import { addPeriodDay, removePeriodDay } from '../services/periodUpdate.service.js';
+import Log from '../models/Log.model.js';
+import { getUtcDayRange, toUtcMidnight } from '../utils/dateUtils.js';
 
 /**
  * POST /api/period/add
- * Add a period day (only updates User lastPeriodStart/End/periodLength; no logs).
- * Body: { date: "YYYY-MM-DD" }
+ * Add a period day: updates User (lastPeriodStart/End/periodLength) and creates/updates log.
+ * - If log already exists: only set isPeriod: true (no other fields changed).
+ * - If no log: create with date, flow, flowIntensity, phase: "period", isPeriod: true.
+ * Body: { date: "YYYY-MM-DD", flow?: "medium", flowIntensity?: "B" }
  */
 export const addPeriod = async (req, res) => {
   try {
@@ -21,13 +25,33 @@ export const addPeriod = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    const { start, end } = getUtcDayRange(date);
+    const logDate = toUtcMidnight(date);
+    const flow = req.body?.flow ?? 'medium';
+    const flowIntensity = req.body?.flowIntensity ?? 'B';
+
+    let log = await Log.findOne({ user: userId, date: { $gte: start, $lt: end } });
+    if (log) {
+      log.isPeriod = true;
+      await log.save();
+    } else {
+      log = new Log({
+        user: userId,
+        date: logDate,
+        flow,
+        flowIntensity,
+        phase: 'period',
+        isPeriod: true
+      });
+      await log.save();
+    }
+
     return res.json({
       success: true,
       message: 'Period day added (start/end updated)',
       data: {
-        // lastPeriodStart: result.lastPeriodStart,
-        // lastPeriodEnd: result.lastPeriodEnd,
-        periodLength: result.periodLength
+        periodLength: result.periodLength,
+        log: log.toObject ? log.toObject() : { ...log }
       }
     });
   } catch (error) {
@@ -42,7 +66,8 @@ export const addPeriod = async (req, res) => {
 
 /**
  * POST /api/period/remove
- * Remove a period day (only updates User lastPeriodStart/End/periodLength; no logs).
+ * Remove a period day: updates User (lastPeriodStart/End/periodLength) and sets
+ * isPeriod: false on the log for that date (no other log fields changed).
  * Body: { date: "YYYY-MM-DD" }
  */
 export const removePeriod = async (req, res) => {
@@ -61,12 +86,17 @@ export const removePeriod = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    const { start, end } = getUtcDayRange(date);
+    const log = await Log.findOne({ user: userId, date: { $gte: start, $lt: end } });
+    if (log) {
+      log.isPeriod = false;
+      await log.save();
+    }
+
     return res.json({
       success: true,
       message: result.updated ? 'Period day removed (start/end updated)' : 'No change (date not at period start/end)',
       data: {
-        // lastPeriodStart: result.lastPeriodStart ?? undefined,
-        // lastPeriodEnd: result.lastPeriodEnd ?? undefined,
         periodLength: result.periodLength ?? undefined,
         updated: result.updated
       }

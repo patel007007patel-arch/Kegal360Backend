@@ -1,7 +1,10 @@
 import User from '../../models/User.model.js';
 import Log from '../../models/Log.model.js';
 import Cycle from '../../models/Cycle.model.js';
+import CycleSwitchHistory from '../../models/CycleSwitchHistory.model.js';
 import { calculateCyclePredictions, generateCalendarData } from '../../services/cycleCalculation.service.js';
+import { resolveCustomLogsForLog, resolveCustomLogsForLogs } from '../../utils/resolveLogCustomLogs.js';
+import { toUtcDateKey, getUtcToday, addDaysUtc, getUtcDayRange, getUtcMonthRange } from '../../utils/dateUtils.js';
 
 /**
  * Build home-style response for a given user (used for partner shared view).
@@ -16,18 +19,14 @@ async function buildHomeDataForUser(user) {
     hasLog: false
   };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = getUtcToday();
+  const tomorrow = addDaysUtc(today, 1);
   const todayLog = await Log.findOne({ user: user._id, date: { $gte: today, $lt: tomorrow } });
   baseResponse.hasLog = !!todayLog;
 
   if (!user.trackCycle || user.cycleType === 'absent') {
     const UserProgress = (await import('../../models/UserProgress.model.js')).default;
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - 7);
-    weekStart.setHours(0, 0, 0, 0);
+    const weekStart = addDaysUtc(today, -7);
     const progressDocs = await UserProgress.find({
       user: user._id,
       sessionStartedAt: { $gte: weekStart }
@@ -302,6 +301,9 @@ export const getPartnerCalendarEnhanced = async (req, res) => {
         dayInfo.phase = log.phase;
         dayInfo.phaseName = log.phase === 'period' ? 'Menstrual' : (log.phase.charAt(0).toUpperCase() + log.phase.slice(1));
       }
+      if (log.customLogs && log.customLogs.length > 0) {
+        dayInfo.customLogs = log.customLogs;
+      }
     };
 
     const partnerInfo = { id: partner._id, name: partner.name, partnerCode: partner.partnerCode };
@@ -310,16 +312,14 @@ export const getPartnerCalendarEnhanced = async (req, res) => {
       const months = [];
       for (let m = 1; m <= 12; m++) {
         const calendarData = generateCalendarData(partner, m, yearNum);
-        const startDate = new Date(Date.UTC(yearNum, m - 1, 1));
-        const endDate = new Date(Date.UTC(yearNum, m, 0, 23, 59, 59, 999));
+        const { start: startDate, end: endDate } = getUtcMonthRange(yearNum, m);
         let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
         if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
-        const logs = await Log.find(logQuery).sort({ date: 1 });
+        let logs = await Log.find(logQuery).sort({ date: 1 }).lean();
+        await resolveCustomLogsForLogs(logs, targetUserId);
         const enhancedCalendar = calendarData.calendar.map(dayData => {
-          const log = logs.find(l => {
-            const d = new Date(l.date);
-            return d.getUTCDate() === dayData.day && d.getUTCMonth() === m - 1 && d.getUTCFullYear() === yearNum;
-          });
+          const dayKey = toUtcDateKey(dayData.date);
+          const log = logs.find(l => toUtcDateKey(l.date) === dayKey);
           const dayInfo = {
             date: dayData.date,
             day: dayData.day,
@@ -346,19 +346,15 @@ export const getPartnerCalendarEnhanced = async (req, res) => {
     }
 
     const calendarData = generateCalendarData(partner, monthNum, yearNum);
-    const startDate = new Date(Date.UTC(yearNum, monthNum - 1, 1));
-    const endDate = new Date(Date.UTC(yearNum, monthNum, 0, 23, 59, 59, 999));
+    const { start: startDate, end: endDate } = getUtcMonthRange(yearNum, monthNum);
     let logQuery = { user: targetUserId, date: { $gte: startDate, $lte: endDate } };
     if (phase && phase !== 'all') logQuery.phase = phase === 'menstrual' ? 'period' : phase;
-    const logs = await Log.find(logQuery).sort({ date: 1 });
+    let logs = await Log.find(logQuery).sort({ date: 1 }).lean();
+    await resolveCustomLogsForLogs(logs, targetUserId);
 
     const enhancedCalendar = calendarData.calendar.map(dayData => {
-      const log = logs.find(l => {
-        const logDate = new Date(l.date);
-        return logDate.getUTCDate() === dayData.day &&
-               logDate.getUTCMonth() === monthNum - 1 &&
-               logDate.getUTCFullYear() === yearNum;
-      });
+      const dayKey = toUtcDateKey(dayData.date);
+      const log = logs.find(l => toUtcDateKey(l.date) === dayKey);
       const dayInfo = {
         date: dayData.date,
         day: dayData.day,
@@ -395,6 +391,159 @@ export const getPartnerCalendarEnhanced = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Error fetching partner calendar',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * GET /api/partners/switch-history
+ * Same as GET /api/cycles/switch-history but for the connected partner. Requires user to be connected.
+ */
+export const getPartnerSwitchHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId).populate('sharedBy');
+    if (!user.sharedBy) {
+      return res.status(404).json({
+        success: false,
+        message: 'No partner connected'
+      });
+    }
+    const partner = user.sharedBy;
+    const history = await CycleSwitchHistory.find({ user: partner._id })
+      .sort({ switchDate: -1 })
+      .lean();
+
+    const data = history.map((h) => ({
+      id: h._id,
+      switchDate: h.switchDate,
+      cycleType: h.cycleType || 'regular',
+      trackCycle: h.trackCycle !== false,
+      cycleLength: h.cycleLength ?? 28,
+      cycleLengthRange: h.cycleLengthRange || null,
+      periodLength: h.periodLength ?? 5,
+      lastPeriodStart: h.lastPeriodStart || null,
+      lastPeriodEnd: h.lastPeriodEnd || null
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        partner: { id: partner._id, name: partner.name, partnerCode: partner.partnerCode },
+        history: data
+      }
+    });
+  } catch (error) {
+    console.error('Get partner switch history error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error fetching partner switch history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * GET /api/partners/logs
+ * Same as GET /api/logs but for the connected partner. Query: startDate, endDate, month, year, phase.
+ */
+export const getPartnerLogs = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId).populate('sharedBy');
+    if (!user.sharedBy) {
+      return res.status(404).json({
+        success: false,
+        message: 'No partner connected'
+      });
+    }
+    const partner = user.sharedBy;
+    const targetUserId = partner._id;
+    const { startDate, endDate, phase, month, year } = req.query;
+
+    let query = { user: targetUserId };
+
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    } else if (month && year) {
+      const { start, end } = getUtcMonthRange(year, month);
+      query.date = { $gte: start, $lte: end };
+    }
+
+    if (phase) {
+      query.phase = phase === 'menstrual' ? 'period' : phase;
+    }
+
+    let logs = await Log.find(query).sort({ date: -1 }).lean();
+    await resolveCustomLogsForLogs(logs, targetUserId);
+
+    res.json({
+      success: true,
+      data: {
+        partner: { id: partner._id, name: partner.name, partnerCode: partner.partnerCode },
+        logs,
+        count: logs.length
+      }
+    });
+  } catch (error) {
+    console.error('Get partner logs error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error fetching partner logs',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * GET /api/partners/logs/by-date
+ * Same as GET /api/logs/by-date but for the connected partner. Query: date (YYYY-MM-DD).
+ */
+export const getPartnerLogByDate = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId).populate('sharedBy');
+    if (!user.sharedBy) {
+      return res.status(404).json({
+        success: false,
+        message: 'No partner connected'
+      });
+    }
+    const partner = user.sharedBy;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Query "date" is required (e.g. date=2025-09-12)'
+      });
+    }
+
+    const { start: dayStart, end: dayEnd } = getUtcDayRange(date);
+
+    let log = await Log.findOne({
+      user: partner._id,
+      date: { $gte: dayStart, $lt: dayEnd }
+    }).lean();
+
+    if (log) await resolveCustomLogsForLog(log, partner._id);
+
+    res.json({
+      success: true,
+      data: {
+        partner: { id: partner._id, name: partner.name, partnerCode: partner.partnerCode },
+        log: log || null
+      }
+    });
+  } catch (error) {
+    console.error('Get partner log by date error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error fetching partner log by date',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -467,8 +616,7 @@ export const viewPartnerByCode = async (req, res) => {
     const Cycle = (await import('../../models/Cycle.model.js')).default;
     const { calculateCyclePredictions } = await import('../../services/cycleCalculation.service.js');
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgo = addDaysUtc(getUtcToday(), -30);
 
     const partnerLogs = await Log.find({
       user: partner._id,
@@ -618,4 +766,4 @@ export const purchaseSubscriptionForPartner = async (req, res) => {
   }
 };
 
-export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, getPartnerCalendarEnhanced, disconnectPartner, viewPartnerByCode, purchaseSubscriptionForPartner };
+export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, getPartnerCalendarEnhanced, getPartnerSwitchHistory, getPartnerLogs, getPartnerLogByDate, disconnectPartner, viewPartnerByCode, purchaseSubscriptionForPartner };

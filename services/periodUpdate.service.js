@@ -1,18 +1,5 @@
 import User from '../models/User.model.js';
-
-/** Normalize to UTC midnight (date-only). */
-const toUtcMidnight = (d) => {
-  const t = new Date(d);
-  t.setUTCHours(0, 0, 0, 0);
-  return t;
-};
-
-/** Add n days in UTC. */
-const addDaysUtc = (d, n) => {
-  const t = new Date(d);
-  t.setUTCDate(t.getUTCDate() + n);
-  return t;
-};
+import { toUtcMidnight, addDaysUtc } from '../utils/dateUtils.js';
 
 const getCycleLength = (user) => {
   if (user.cycleType === 'regular' && user.cycleLength) return user.cycleLength;

@@ -1,22 +1,10 @@
 import Log from '../../models/Log.model.js';
 import User from '../../models/User.model.js';
+import CustomLog from '../../models/CustomLog.model.js';
 import { addPeriodDay, removePeriodDay } from '../../services/periodUpdate.service.js';
-
-const toUtcDateKey = (d) => new Date(d).toISOString().slice(0, 10); // YYYY-MM-DD
-
-/** Normalize to UTC midnight (date-only). */
-const toUtcMidnight = (d) => {
-  const t = new Date(d);
-  t.setUTCHours(0, 0, 0, 0);
-  return t;
-};
-
-/** Add n days in UTC. */
-const addDaysUtc = (d, n) => {
-  const t = new Date(d);
-  t.setUTCDate(t.getUTCDate() + n);
-  return t;
-};
+import { isValidObjectId } from '../../utils/validateObjectId.js';
+import { resolveCustomLogsForLog } from '../../utils/resolveLogCustomLogs.js';
+import { toUtcDateKey, toUtcMidnight, addDaysUtc, getUtcToday } from '../../utils/dateUtils.js';
 
 /**
  * Keep user.lastPeriodStart/End + periodLength in sync with period logs.
@@ -75,7 +63,7 @@ const syncUserPeriodFromLogs = async (userId) => {
   const derivedPeriodLength = Math.max(1, Math.min(14, diffDays + 1));
 
   // Don't overwrite User with a period that starts in the future.
-  const today = toUtcMidnight(Date.now());
+  const today = getUtcToday();
   if (start.getTime() > today.getTime()) return;
 
   await User.findByIdAndUpdate(userId, {
@@ -85,13 +73,57 @@ const syncUserPeriodFromLogs = async (userId) => {
   });
 };
 
+/**
+ * Validate and normalize customLogs from body: [{ customLogId, entryIds }, ...].
+ * Ensures customLogId belongs to user and entryIds exist in that CustomLog.
+ * Returns normalized array or throws.
+ */
+async function validateAndNormalizeCustomLogs(customLogsInput, userId) {
+  if (customLogsInput === undefined || customLogsInput === null) return undefined;
+  if (!Array.isArray(customLogsInput)) {
+    throw new Error('customLogs must be an array');
+  }
+  if (customLogsInput.length === 0) return [];
+
+  const normalized = [];
+  for (const item of customLogsInput) {
+    if (!item || !item.customLogId) continue;
+    const customLogId = item.customLogId;
+    if (!isValidObjectId(customLogId)) {
+      throw new Error(`Invalid customLogId: ${customLogId}`);
+    }
+    const entryIds = Array.isArray(item.entryIds) ? item.entryIds : [];
+    const validEntryIds = entryIds.filter((id) => id != null && isValidObjectId(id.toString()));
+
+    const customLog = await CustomLog.findOne({ _id: customLogId, user: userId });
+    if (!customLog) {
+      throw new Error(`Custom log not found or access denied: ${customLogId}`);
+    }
+    const entryIdSet = new Set((customLog.log || []).map((e) => e._id.toString()));
+    for (const eid of validEntryIds) {
+      if (!entryIdSet.has(eid.toString())) {
+        throw new Error(`Entry ${eid} not found in custom log ${customLogId}`);
+      }
+    }
+
+    normalized.push({
+      customLogId,
+      entryIds: validEntryIds
+    });
+  }
+  return normalized;
+}
+
 export const createLog = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { date, flow, flowIntensity, mood, symptoms, phase, temperature, notes, customLogs } = req.body;
+    const { date, flow, flowIntensity, mood, symptoms, phase, temperature, notes, customLogs: customLogsInput } = req.body;
 
     const logDate = toUtcMidnight(date);
     const dayEnd = addDaysUtc(logDate, 1);
+
+    let customLogs = await validateAndNormalizeCustomLogs(customLogsInput, userId);
+    if (customLogs === undefined) customLogs = null; // leave existing unchanged when not sent
 
     // Check if log already exists for this date (same UTC day).
     const existingLog = await Log.findOne({
@@ -101,7 +133,6 @@ export const createLog = async (req, res) => {
 
     if (existingLog) {
       const prevPhase = existingLog.phase;
-      // Update existing log
       Object.assign(existingLog, {
         flow: flow !== undefined ? flow : existingLog.flow,
         flowIntensity: flowIntensity !== undefined ? flowIntensity : existingLog.flowIntensity,
@@ -110,12 +141,11 @@ export const createLog = async (req, res) => {
         phase: phase !== undefined ? phase : existingLog.phase,
         temperature: temperature !== undefined ? temperature : existingLog.temperature,
         notes: notes !== undefined ? notes : existingLog.notes,
-        customLogs: customLogs !== undefined ? customLogs : existingLog.customLogs
+        ...(customLogs !== null && { customLogs })
       });
 
       await existingLog.save();
 
-      // Period changed: ADD/REMOVE use same logic as /api/period (service). If remove and not at block start/end, sync from logs.
       if (existingLog.phase === 'period') {
         await addPeriodDay(userId, logDate);
       } else if (prevPhase === 'period') {
@@ -123,16 +153,17 @@ export const createLog = async (req, res) => {
         if (!removed.updated) await syncUserPeriodFromLogs(userId);
       }
 
+      const out = existingLog.toObject ? existingLog.toObject() : { ...existingLog };
+      await resolveCustomLogsForLog(out, userId);
+
       return res.json({
         success: true,
         message: 'Log updated successfully',
-        data: {
-          log: existingLog
-        }
+        data: { log: out }
       });
     }
 
-    // Create new log (store date as UTC midnight).
+    const customLogsToSave = customLogs && customLogs.length > 0 ? customLogs : [];
     const log = new Log({
       user: userId,
       date: logDate,
@@ -143,26 +174,26 @@ export const createLog = async (req, res) => {
       phase,
       temperature,
       notes,
-      customLogs
+      customLogs: customLogsToSave
     });
 
     await log.save();
 
-    // If this is a period day: same logic as POST /api/period/add (only User updated).
     if (phase === 'period') await addPeriodDay(userId, logDate);
+
+    const out = log.toObject ? log.toObject() : { ...log };
+    await resolveCustomLogsForLog(out, userId);
 
     res.status(201).json({
       success: true,
       message: 'Log created successfully',
-      data: {
-        log
-      }
+      data: { log: out }
     });
   } catch (error) {
     console.error('Create log error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error creating log',
+      message: error.message || 'Error creating log',
       error: error.message
     });
   }
