@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
-import { uploadVideoAndThumbnail, uploadMediaAndThumbnail, requireMultipart, normalizeVideoUpload } from '../middleware/upload.middleware.js';
+import { uploadVideoAndThumbnail, uploadMediaAndThumbnail, requireMultipart, normalizeVideoUpload, optionalMultipartForMediaUpdate } from '../middleware/upload.middleware.js';
 import { getAllUsers, getUserById, createUser, updateUser, deleteUser } from '../controllers/admin.controller/users.controller.js';
 import { getDashboardStats } from '../controllers/admin.controller/dashboard.controller.js';
 import videoController from '../controllers/admin.controller/videos.controller.js';
@@ -81,7 +81,7 @@ router.post('/steps/reorder', stepController.reorderSteps);
 router.get('/media', mediaController.getAllMedia);
 router.get('/media/:id', mediaController.getMediaById);
 router.post('/media', requireMultipart, uploadMediaAndThumbnail, normalizeVideoUpload, mediaController.createMedia);
-router.put('/media/:id', requireMultipart, uploadMediaAndThumbnail, normalizeVideoUpload, mediaController.updateMedia);
+router.put('/media/:id', optionalMultipartForMediaUpdate, mediaController.updateMedia);
 router.delete('/media/:id', mediaController.deleteMedia);
 
 // Logs

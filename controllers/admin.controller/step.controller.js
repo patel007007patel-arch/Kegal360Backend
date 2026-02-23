@@ -77,7 +77,7 @@ export const createStep = async (req, res) => {
       title,
       instructions,
       media,
-      audio,
+      ...(audio && { audio }),
       timer: timer || 30,
       restTime: restTime || 0,
       order: order || 1,
@@ -122,18 +122,25 @@ export const updateStep = async (req, res) => {
       isActive
     } = req.body;
 
+    const update = {
+      ...(title && { title }),
+      ...(instructions !== undefined && { instructions }),
+      ...(media && { media }),
+      ...(timer !== undefined && { timer }),
+      ...(restTime !== undefined && { restTime }),
+      ...(order !== undefined && { order }),
+      ...(isActive !== undefined && { isActive })
+    };
+    if (audio !== undefined) {
+      if (audio === '' || audio === null) {
+        update.$unset = { ...(update.$unset || {}), audio: 1 };
+      } else {
+        update.audio = audio;
+      }
+    }
     const step = await Step.findByIdAndUpdate(
       req.params.id,
-      {
-        ...(title && { title }),
-        ...(instructions !== undefined && { instructions }),
-        ...(media && { media }),
-        ...(audio !== undefined && { audio }),
-        ...(timer !== undefined && { timer }),
-        ...(restTime !== undefined && { restTime }),
-        ...(order !== undefined && { order }),
-        ...(isActive !== undefined && { isActive })
-      },
+      update,
       { new: true, runValidators: true }
     );
 

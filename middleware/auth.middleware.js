@@ -3,8 +3,8 @@ import User from '../models/User.model.js';
 
 export const authenticate = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1] || req.headers['x-auth-token'];
-    
+    const token = req.headers.authorization?.split(' ')[1] || req.headers['x-auth-token'] || req.query?.token;
+
     if (!token) {
       return res.status(401).json({
         success: false,

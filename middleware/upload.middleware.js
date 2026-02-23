@@ -252,6 +252,20 @@ export const requireMultipart = (req, res, next) => {
   next();
 };
 
+// For PUT /media/:id: run upload chain only when Content-Type is multipart; otherwise skip so JSON metadata-only updates work (and token in Authorization header is sent)
+export const optionalMultipartForMediaUpdate = (req, res, next) => {
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('multipart/form-data')) {
+    return next();
+  }
+  requireMultipart(req, res, () => {
+    uploadMediaAndThumbnail(req, res, (err) => {
+      if (err) return next(err);
+      normalizeVideoUpload(req, res, next);
+    });
+  });
+};
+
 // Normalize multer .fields() result to req.file + req.files for controllers expecting req.file
 export const normalizeVideoUpload = (req, res, next) => {
   if (req.files?.video?.[0]) {
