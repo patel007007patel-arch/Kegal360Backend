@@ -202,24 +202,31 @@ export const updateMedia = async (req, res) => {
     } = req.body;
 
     const updateData = {
-      ...(title && { title }),
+      ...(title !== undefined && { title }),
       ...(description !== undefined && { description }),
       ...(filePath && { filePath }),
       ...(thumbnail !== undefined && { thumbnail }),
       ...(duration !== undefined && { duration }),
-      ...(orientation && { orientation }),
-      ...(instructor && { instructor }),
+      ...(orientation !== undefined && { orientation }),
+      ...(instructor !== undefined && { instructor }),
       ...(tags !== undefined && { tags }),
       ...(isActive !== undefined && { isActive })
     };
 
     // Handle file uploads if present (store full URL like images, per media type)
-    const updateMediaType = (req.body.mediaType || 'video').toLowerCase();
+    const updateMediaType = (req.body?.mediaType || 'video').toLowerCase();
     if (req.file) {
       updateData.filePath = getMediaFileUrl(req.file, 'main', updateMediaType);
     }
     if (req.files?.thumbnail?.[0]) {
       updateData.thumbnail = getMediaFileUrl(req.files.thumbnail[0], 'thumbnail');
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update. Send at least one of: title, description, duration, orientation, tags, isActive, or upload a file.'
+      });
     }
 
     const media = await Media.findByIdAndUpdate(
