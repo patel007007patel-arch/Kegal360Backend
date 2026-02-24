@@ -379,6 +379,94 @@ export const deleteCustomLogEntry = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/custom-logs/:id/entries
+ * Append NEW entries to an existing custom log.
+ * Form-data (same pattern as create):
+ * - logTitle1, logimage1, logTitle2, logimage2, ...
+ * Does NOT require entryIdN; it always creates new entries.
+ */
+export const addCustomLogEntries = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid custom log id'
+      });
+    }
+    const userId = req.user._id;
+
+    const customLog = await CustomLog.findOne({ _id: id, user: userId });
+    if (!customLog) {
+      return res.status(404).json({
+        success: false,
+        message: 'Custom log not found'
+      });
+    }
+
+    const addedEntries = [];
+
+    for (let i = 1; i <= MAX_ENTRIES_BATCH; i++) {
+      const title = req.body[`logTitle${i}`];
+      const file = req.files && req.files[`logimage${i}`] && req.files[`logimage${i}`][0];
+      if (title === undefined && !file) continue;
+
+      const entryTitle = title != null ? String(title).trim() : '';
+      if (entryTitle.length > MAX_ENTRY_TITLE_LENGTH) {
+        return res.status(400).json({
+          success: false,
+          message: `logTitle${i} must be at most ${MAX_ENTRY_TITLE_LENGTH} characters`
+        });
+      }
+
+      const newEntry = {
+        logTitle: entryTitle,
+        logimage: file ? getLogImageUrl(file.filename) : ''
+      };
+
+      customLog.log.push(newEntry);
+      const last = customLog.log[customLog.log.length - 1];
+      addedEntries.push({
+        id: last._id,
+        logTitle: last.logTitle,
+        logimage: toFullImageUrl(last.logimage)
+      });
+    }
+
+    if (!addedEntries.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Send at least one logTitle1/logimage1, logTitle2/logimage2, ... to add entries'
+      });
+    }
+
+    await customLog.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Custom log entries added successfully',
+      data: {
+        id: customLog._id,
+        mainTitle: (customLog.customLogTitle && customLog.customLogTitle.trim()) ? customLog.customLogTitle : DEFAULT_MAIN_TITLE,
+        added: addedEntries,
+        log: (customLog.log || []).map((entry) => ({
+          id: entry._id,
+          logTitle: entry.logTitle ?? '',
+          logimage: toFullImageUrl(entry.logimage)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Add custom log entries error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error adding custom log entries',
+      error: error.message
+    });
+  }
+};
+
 export const deleteCustomLog = async (req, res) => {
   try {
     const { id } = req.params;
@@ -421,6 +509,7 @@ export default {
   updateCustomLog,
   updateCustomLogEntry,
   updateCustomLogEntries,
+  addCustomLogEntries,
   deleteCustomLogEntry,
   deleteCustomLog
 };

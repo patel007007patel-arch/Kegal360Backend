@@ -9,6 +9,7 @@ import {
   updateCustomLog,
   updateCustomLogEntry,
   updateCustomLogEntries,
+  addCustomLogEntries,
   deleteCustomLogEntry,
   deleteCustomLog
 } from '../controllers/customLog.controller/get.controller.js';
@@ -22,6 +23,7 @@ router.param('entryId', validateObjectIdParam('entryId'));
 router.post('/', requireMultipart, uploadCustomLogCreate, createCustomLog);
 router.get('/', getCustomLogs);
 router.get('/:id', getCustomLogById);
+router.post('/:id/entries', requireMultipart, uploadCustomLogBatchUpdate, addCustomLogEntries);
 router.put('/entries', requireMultipart, uploadCustomLogBatchUpdate, updateCustomLogEntries);
 router.put('/entry/:entryId', requireMultipart, uploadCustomLogSingleImage, updateCustomLogEntry);
 router.delete('/entry/:entryId', deleteCustomLogEntry);

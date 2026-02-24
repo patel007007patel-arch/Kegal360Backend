@@ -1,0 +1,108 @@
+{
+  "info": {
+    "name": "Kegal360 - Custom Logs (Add Entries)",
+    "description": "Test collection for appending NEW entries to an existing CustomLog using POST /api/custom-logs/:id/entries.\n\nFlow:\n1. Login to get a user token.\n2. (Optional) Call GET /api/custom-logs to find an existing customLog id.\n3. Use that id in the {{customLogId}} variable.\n4. Call POST /api/custom-logs/{{customLogId}}/entries with form-data fields logTitle1, logimage1, etc.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "token", "value": "" },
+    { "key": "customLogId", "value": "000000000000000000000000" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (set {{token}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) {",
+                  "    pm.collectionVariables.set('token', json.token);",
+                  "    pm.test('Token saved to collection variables', function () {",
+                  "      pm.expect(pm.collectionVariables.get('token')).to.eql(json.token);",
+                  "    });",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"yourpassword\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Custom Logs",
+      "item": [
+        {
+          "name": "Get Custom Logs (find an existing id)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/custom-logs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "custom-logs"]
+            },
+            "description": "Returns all CustomLog documents for the authenticated user. Copy one of the `id` values into the {{customLogId}} variable to use in the add-entries request."
+          }
+        },
+        {
+          "name": "Add Entries to Existing CustomLog",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "logTitle1",
+                  "value": "First extra note",
+                  "type": "text"
+                },
+                {
+                  "key": "logimage1",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "logTitle2",
+                  "value": "Second extra note (no image)",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/custom-logs/{{customLogId}}/entries",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "custom-logs", "{{customLogId}}", "entries"]
+            },
+            "description": "Append NEW entries to an existing custom log.\n\n- Path: `:id` = {{customLogId}} (an existing CustomLog document id).\n- Body: `logTitle1`, `logimage1`, `logTitle2`, `logimage2`, ... up to 20.\n- Each `logTitleN` may be empty; each `logimageN` is optional. At least one title or image must be provided to create an entry.\n\nResponse includes:\n- `data.added`: list of newly created entries with their ids\n- `data.log`: full updated list of entries for that custom log."
+          }
+        }
+      ]
+    }
+  ]
+}
+
