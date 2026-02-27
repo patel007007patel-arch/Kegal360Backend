@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import Session from '../../models/Session.model.js';
 import Step from '../../models/Step.model.js';
 import Sequence from '../../models/Sequence.model.js';
@@ -158,17 +160,34 @@ export const updateSession = async (req, res) => {
       updateData.thumbnail = thumbnailUrl;
     }
 
+    // Retrieve old session to delete previous thumbnail if it is being replaced
+    const oldSession = await Session.findById(req.params.id);
+    if (!oldSession) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found'
+      });
+    }
+
     const session = await Session.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true }
     );
 
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found'
-      });
+    // Try to delete old thumbnail if it was replaced
+    if (updateData.thumbnail && oldSession.thumbnail && updateData.thumbnail !== oldSession.thumbnail) {
+      try {
+        const urlObj = new URL(oldSession.thumbnail);
+        const relativePath = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+        const projectRoot = path.join(process.cwd());
+        const localPath = path.join(projectRoot, relativePath);
+        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+          fs.unlinkSync(localPath);
+        }
+      } catch (err) {
+        console.warn('Could not delete old session thumbnail:', err.message);
+      }
     }
 
     // Recalculate session and sequence duration

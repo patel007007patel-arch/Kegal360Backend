@@ -116,7 +116,7 @@ const fileFilter = (req, file, cb) => {
     const allowedTypes = /mp4|avi|mov|wmv|flv|webm/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -126,7 +126,7 @@ const fileFilter = (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -200,7 +200,8 @@ const mediaFileFilter = (req, file, cb) => {
   if (file.fieldname === 'thumbnail') {
     const allowed = /jpeg|jpg|png|gif|webp/;
     const ok = allowed.test(path.extname(file.originalname).toLowerCase()) && allowed.test(file.mimetype);
-    return cb(ok ? null : new Error('Thumbnail: only image files allowed'));
+    if (ok) return cb(null, true);
+    return cb(new Error('Thumbnail: only image files allowed'));
   }
   const allowed = /mp4|avi|mov|wmv|flv|webm|mp3|wav|m4a|ogg|jpeg|jpg|png|gif|webp/;
   const ok = allowed.test(path.extname(file.originalname).toLowerCase());

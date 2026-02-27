@@ -222,6 +222,15 @@ export const updateMedia = async (req, res) => {
       updateData.thumbnail = getMediaFileUrl(req.files.thumbnail[0], 'thumbnail');
     }
 
+    // Retrieve old media to delete previous files if they are being replaced
+    const oldMedia = await Media.findById(req.params.id);
+    if (!oldMedia) {
+      return res.status(404).json({
+        success: false,
+        message: 'Media not found'
+      });
+    }
+
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
         success: false,
@@ -235,11 +244,12 @@ export const updateMedia = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    if (!media) {
-      return res.status(404).json({
-        success: false,
-        message: 'Media not found'
-      });
+    // Delete old files if they were replaced
+    if (updateData.filePath && oldMedia.filePath && updateData.filePath !== oldMedia.filePath) {
+      deleteFileIfExists(oldMedia.filePath);
+    }
+    if (updateData.thumbnail && oldMedia.thumbnail && updateData.thumbnail !== oldMedia.thumbnail) {
+      deleteFileIfExists(oldMedia.thumbnail);
     }
 
     res.json({
