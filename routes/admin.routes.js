@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { validateObjectIdParam } from '../middleware/validateObjectId.middleware.js';
-import { uploadVideoAndThumbnail, uploadMediaAndThumbnail, requireMultipart, normalizeVideoUpload, optionalMultipartForMediaUpdate } from '../middleware/upload.middleware.js';
+import { uploadVideoAndThumbnail, uploadMediaAndThumbnail, requireMultipart, normalizeVideoUpload, optionalMultipartForMediaUpdate, uploadThumbnail } from '../middleware/upload.middleware.js';
 import { getAllUsers, getUserById, createUser, updateUser, deleteUser } from '../controllers/admin.controller/users.controller.js';
 import { getDashboardStats } from '../controllers/admin.controller/dashboard.controller.js';
 import videoController from '../controllers/admin.controller/videos.controller.js';
@@ -64,8 +64,18 @@ router.post('/sequences/reorder', sequenceController.reorderSequences);
 // Session Manager
 router.get('/sessions', sessionController.getAllSessions);
 router.get('/sessions/:id', sessionController.getSessionById);
-router.post('/sessions', sessionController.createSession);
-router.put('/sessions/:id', sessionController.updateSession);
+router.post(
+  '/sessions',
+  requireMultipart,
+  uploadThumbnail.single('thumbnail'),
+  sessionController.createSession
+);
+router.put(
+  '/sessions/:id',
+  requireMultipart,
+  uploadThumbnail.single('thumbnail'),
+  sessionController.updateSession
+);
 router.delete('/sessions/:id', sessionController.deleteSession);
 router.post('/sessions/reorder', sessionController.reorderSessions);
 

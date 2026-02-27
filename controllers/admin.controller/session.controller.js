@@ -1,6 +1,7 @@
 import Session from '../../models/Session.model.js';
 import Step from '../../models/Step.model.js';
 import Sequence from '../../models/Sequence.model.js';
+import { getServerUrl } from '../../utils/serverUrl.js';
 
 // Get all sessions
 export const getAllSessions = async (req, res) => {
@@ -78,13 +79,20 @@ export const createSession = async (req, res) => {
       isFree
     } = req.body;
 
+    // Prefer uploaded thumbnail file (same URL pattern as media library) if provided
+    let thumbnailUrl = thumbnail;
+    if (req.file && req.file.filename) {
+      const base = getServerUrl();
+      thumbnailUrl = `${base}/uploads/assets/thumbnails/${req.file.filename}`;
+    }
+
     const session = await Session.create({
       sequence,
       sessionType,
       title,
       description,
       benefits: benefits || [],
-      thumbnail,
+      thumbnail: thumbnailUrl,
       difficulty: difficulty || 'beginner',
       equipment: equipment || 'Equipment-free',
       order: order || 1,
@@ -128,19 +136,31 @@ export const updateSession = async (req, res) => {
       isFree
     } = req.body;
 
+    // Build update payload, preferring uploaded thumbnail if present
+    let thumbnailUrl = thumbnail;
+    if (req.file && req.file.filename) {
+      const base = getServerUrl();
+      thumbnailUrl = `${base}/uploads/assets/thumbnails/${req.file.filename}`;
+    }
+
+    const updateData = {
+      ...(title && { title }),
+      ...(description !== undefined && { description }),
+      ...(benefits !== undefined && { benefits }),
+      ...(difficulty && { difficulty }),
+      ...(equipment !== undefined && { equipment }),
+      ...(order !== undefined && { order }),
+      ...(isActive !== undefined && { isActive }),
+      ...(isFree !== undefined && { isFree })
+    };
+
+    if (thumbnailUrl !== undefined) {
+      updateData.thumbnail = thumbnailUrl;
+    }
+
     const session = await Session.findByIdAndUpdate(
       req.params.id,
-      {
-        ...(title && { title }),
-        ...(description !== undefined && { description }),
-        ...(benefits !== undefined && { benefits }),
-        ...(thumbnail !== undefined && { thumbnail }),
-        ...(difficulty && { difficulty }),
-        ...(equipment !== undefined && { equipment }),
-        ...(order !== undefined && { order }),
-        ...(isActive !== undefined && { isActive }),
-        ...(isFree !== undefined && { isFree })
-      },
+      updateData,
       { new: true, runValidators: true }
     );
 
