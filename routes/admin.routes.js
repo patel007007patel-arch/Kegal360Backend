@@ -55,8 +55,18 @@ router.delete('/cycle-phases/:id', cyclePhaseController.deleteCyclePhase);
 // Sequence Manager
 router.get('/sequences', sequenceController.getAllSequences);
 router.get('/sequences/:id', sequenceController.getSequenceById);
-router.post('/sequences', sequenceController.createSequence);
-router.put('/sequences/:id', sequenceController.updateSequence);
+router.post(
+  '/sequences',
+  requireMultipart,
+  uploadThumbnail.single('thumbnail'),
+  sequenceController.createSequence
+);
+router.put(
+  '/sequences/:id',
+  requireMultipart,
+  uploadThumbnail.single('thumbnail'),
+  sequenceController.updateSequence
+);
 router.delete('/sequences/:id', sequenceController.deleteSequence);
 router.post('/sequences/:id/duplicate', sequenceController.duplicateSequence);
 router.post('/sequences/reorder', sequenceController.reorderSequences);

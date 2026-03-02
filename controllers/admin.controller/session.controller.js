@@ -222,6 +222,21 @@ export const deleteSession = async (req, res) => {
       });
     }
 
+    // Delete old thumbnail if it exists
+    if (session.thumbnail) {
+      try {
+        const urlObj = new URL(session.thumbnail);
+        const relativePath = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+        const projectRoot = path.join(process.cwd());
+        const localPath = path.join(projectRoot, relativePath);
+        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+          fs.unlinkSync(localPath);
+        }
+      } catch (err) {
+        console.warn('Could not delete session thumbnail:', err.message);
+      }
+    }
+
     // Delete all steps
     await Step.deleteMany({ session: session._id });
     await Session.findByIdAndDelete(req.params.id);

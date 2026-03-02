@@ -1,6 +1,9 @@
+import fs from 'fs';
+import path from 'path';
 import Sequence from '../../models/Sequence.model.js';
 import Session from '../../models/Session.model.js';
 import Step from '../../models/Step.model.js';
+import { getServerUrl } from '../../utils/serverUrl.js';
 
 // Get all sequences
 export const getAllSequences = async (req, res) => {
@@ -63,12 +66,19 @@ export const createSequence = async (req, res) => {
   try {
     const { cyclePhase, name, displayName, description, thumbnail, order, isActive } = req.body;
 
+    // Prefer uploaded thumbnail file (same URL pattern as media library) if provided
+    let thumbnailUrl = thumbnail;
+    if (req.file && req.file.filename) {
+      const base = getServerUrl();
+      thumbnailUrl = `${base}/uploads/assets/thumbnails/${req.file.filename}`;
+    }
+
     const sequence = await Sequence.create({
       cyclePhase,
       name,
       displayName,
       description,
-      thumbnail,
+      thumbnail: thumbnailUrl,
       order: order || 1,
       isActive: isActive !== undefined ? isActive : true,
       createdBy: req.user._id
@@ -93,18 +103,54 @@ export const updateSequence = async (req, res) => {
   try {
     const { name, displayName, description, thumbnail, order, isActive } = req.body;
 
+    // Build update payload, preferring uploaded thumbnail if present
+    let thumbnailUrl = thumbnail;
+    if (req.file && req.file.filename) {
+      const base = getServerUrl();
+      thumbnailUrl = `${base}/uploads/assets/thumbnails/${req.file.filename}`;
+    }
+
+    const updateData = {
+      ...(name && { name }),
+      ...(displayName && { displayName }),
+      ...(description !== undefined && { description }),
+      ...(order !== undefined && { order }),
+      ...(isActive !== undefined && { isActive })
+    };
+
+    if (thumbnailUrl !== undefined) {
+      updateData.thumbnail = thumbnailUrl;
+    }
+
+    // Retrieve old sequence to delete previous thumbnail if it is being replaced
+    const oldSequence = await Sequence.findById(req.params.id);
+    if (!oldSequence) {
+      return res.status(404).json({
+        success: false,
+        message: 'Sequence not found'
+      });
+    }
+
     const sequence = await Sequence.findByIdAndUpdate(
       req.params.id,
-      {
-        ...(name && { name }),
-        ...(displayName && { displayName }),
-        ...(description !== undefined && { description }),
-        ...(thumbnail !== undefined && { thumbnail }),
-        ...(order !== undefined && { order }),
-        ...(isActive !== undefined && { isActive })
-      },
+      updateData,
       { new: true, runValidators: true }
     );
+
+    // Try to delete old thumbnail if it was replaced
+    if (updateData.thumbnail && oldSequence.thumbnail && updateData.thumbnail !== oldSequence.thumbnail) {
+      try {
+        const urlObj = new URL(oldSequence.thumbnail);
+        const relativePath = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+        const projectRoot = path.join(process.cwd());
+        const localPath = path.join(projectRoot, relativePath);
+        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+          fs.unlinkSync(localPath);
+        }
+      } catch (err) {
+        console.warn('Could not delete old sequence thumbnail:', err.message);
+      }
+    }
 
     if (!sequence) {
       return res.status(404).json({
@@ -139,6 +185,21 @@ export const deleteSequence = async (req, res) => {
         success: false,
         message: 'Sequence not found'
       });
+    }
+
+    // Delete old thumbnail if it exists
+    if (sequence.thumbnail) {
+      try {
+        const urlObj = new URL(sequence.thumbnail);
+        const relativePath = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+        const projectRoot = path.join(process.cwd());
+        const localPath = path.join(projectRoot, relativePath);
+        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+          fs.unlinkSync(localPath);
+        }
+      } catch (err) {
+        console.warn('Could not delete sequence thumbnail:', err.message);
+      }
     }
 
     // Delete all sessions and steps

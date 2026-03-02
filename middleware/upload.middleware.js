@@ -77,13 +77,13 @@ const imageOnlyFilter = (req, file, cb) => {
 
 export const uploadCustomLogImages = multer({
   storage: customLogImageStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per image
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB per image
   fileFilter: imageOnlyFilter
 }).array('logimage', 20);
 
 export const uploadCustomLogSingleImage = multer({
   storage: customLogImageStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB
   fileFilter: imageOnlyFilter
 }).single('logimage');
 
@@ -95,7 +95,7 @@ const createLogImageFields = Array.from({ length: MAX_LOG_ENTRIES }, (_, i) => (
 }));
 export const uploadCustomLogCreate = multer({
   storage: customLogImageStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB
   fileFilter: imageOnlyFilter
 }).fields(createLogImageFields);
 
@@ -106,7 +106,7 @@ for (let i = 1; i <= MAX_LOG_ENTRIES; i++) {
 }
 export const uploadCustomLogBatchUpdate = multer({
   storage: customLogImageStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB
   fileFilter: imageOnlyFilter
 }).fields(batchUpdateFields);
 
@@ -138,7 +138,7 @@ const fileFilter = (req, file, cb) => {
 export const uploadVideo = multer({
   storage: videoStorage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024 // 100MB default
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 1024 * 1024 * 1024 // 1GB default
   },
   fileFilter
 });
@@ -146,7 +146,7 @@ export const uploadVideo = multer({
 export const uploadImage = multer({
   storage: imageStorage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
+    fileSize: 1024 * 1024 * 1024 // 1GB default
   },
   fileFilter
 });
@@ -154,7 +154,7 @@ export const uploadImage = multer({
 export const uploadThumbnail = multer({
   storage: thumbnailStorage,
   limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB
+    fileSize: 1024 * 1024 * 1024 // 1GB default
   },
   fileFilter
 });
@@ -175,7 +175,7 @@ const videoAndThumbnailStorage = multer.diskStorage({
 export const uploadVideoAndThumbnail = multer({
   storage: videoAndThumbnailStorage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024 // 100MB (thumbnail is still validated by fileFilter)
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 1024 * 1024 * 1024 // 1GB default (thumbnail is still validated by fileFilter)
   },
   fileFilter
 }).fields([
@@ -231,7 +231,7 @@ const mediaAndThumbnailStorage = multer.diskStorage({
 export const uploadMediaAndThumbnail = multer({
   storage: mediaAndThumbnailStorage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 1024 * 1024 * 1024 // 1GB default
   },
   fileFilter: mediaFileFilter
 }).fields([
