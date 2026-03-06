@@ -29,6 +29,20 @@ export const deleteAccount = async (req, res) => {
 
     const userEmail = user.email;
 
+    // Check for active subscriptions (self-purchased or gifted)
+    const now = new Date();
+    const [activeSubscription, activeGiftSubscription] = await Promise.all([
+      Subscription.findOne({ user: userId, isActive: true, endDate: { $gt: now } }),
+      GiftSubscription.findOne({ recipient: userId, status: 'active', expiresAt: { $gt: now } })
+    ]);
+
+    if (activeSubscription || activeGiftSubscription) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete account: You have an active subscription. Please cancel it first.'
+      });
+    }
+
     // Delete all user-associated data (order: child data first, then user)
     await Promise.all([
       Log.deleteMany({ user: userId }),

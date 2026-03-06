@@ -31,48 +31,34 @@ export const createSubscription = async (req, res) => {
       monthly: 4.99,
       yearly: 39.99 // $3.33/month when yearly
     };
-
     // Create or update subscription
     let subscription = await Subscription.findOne({ user: userId });
 
     if (subscription) {
       subscription.plan = plan;
-      subscription.price = prices[plan];
-      subscription.startDate = startDate;
-      subscription.endDate = endDate;
-      subscription.isActive = true;
-      subscription.isTrial = isTrial;
-      subscription.trialEndDate = trialEndDate;
+      // We don't activate or set dates here anymore. The webhook does.
+      subscription.planState = 'inactive';
+      subscription.paymentStatus = 'pending';
       subscription.paymentId = paymentId;
-      subscription.paymentMethod = paymentMethod;
-      subscription.autoRenew = true;
-      subscription.cancelledAt = null;
+      subscription.paymentMethod = paymentMethod || 'REVENUECAT';
+      subscription.revenuecatId = userId;
+      subscription.autoRenew = false;
     } else {
       subscription = new Subscription({
         user: userId,
         plan,
-        price: prices[plan],
-        startDate,
-        endDate,
-        isActive: true,
-        isTrial,
-        trialEndDate,
+        planState: 'inactive',   // Default inactive until webhook
+        paymentStatus: 'pending',
         paymentId,
-        paymentMethod,
-        autoRenew: true
+        paymentMethod: paymentMethod || 'REVENUECAT',
+        revenuecatId: userId,
+        autoRenew: false
       });
     }
 
     await subscription.save();
 
-    // Update user subscription
-    await User.findByIdAndUpdate(userId, {
-      'subscription.plan': plan,
-      'subscription.startDate': startDate,
-      'subscription.endDate': endDate,
-      'subscription.isActive': true,
-      'subscription.paymentId': paymentId
-    });
+    // We do NOT update User.subscription properties here. That is exclusively the webhook's job now.
 
     res.status(201).json({
       success: true,

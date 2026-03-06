@@ -1,6 +1,7 @@
 import UserProgress from '../models/UserProgress.model.js';
 import Session from '../models/Session.model.js';
 import Step from '../models/Step.model.js';
+import MonthlyProgress from '../models/MonthlyProgress.model.js';
 
 // Start session
 export const startSession = async (req, res) => {
@@ -111,6 +112,26 @@ export const completeStep = async (req, res) => {
 
       // Update total time spent
       userProgress.timeSpent += (timeSpent || 0);
+
+      // Track Monthly Progress
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1; // getMonth is 0-indexed
+      const currentYear = now.getFullYear();
+
+      await MonthlyProgress.findOneAndUpdate(
+        {
+          user: req.user._id,
+          month: currentMonth,
+          year: currentYear
+        },
+        {
+          $inc: {
+            totalStepsCompleted: 1,
+            totalTimeSpent: timeSpent || 0
+          }
+        },
+        { upsert: true, new: true }
+      );
     }
 
     await userProgress.save();

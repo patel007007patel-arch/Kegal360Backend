@@ -5,7 +5,7 @@ import Subscription from '../../models/Subscription.model.js';
 export const createGiftSubscription = async (req, res) => {
   try {
     const { partnerCode, plan, message, paymentId, paymentMethod, amount } = req.body;
-    
+
     if (!partnerCode || !plan) {
       return res.status(400).json({
         success: false,
@@ -32,7 +32,7 @@ export const createGiftSubscription = async (req, res) => {
 
     // Get sender ID (can be null for anonymous gifts - no auth required)
     const senderId = req.user?._id || null;
-    
+
     // Check if user is gifting to themselves (only if authenticated)
     if (senderId && senderId.toString() === recipient._id.toString()) {
       return res.status(400).json({
@@ -55,62 +55,36 @@ export const createGiftSubscription = async (req, res) => {
       yearly: 39.99
     };
 
-    // Check if payment is provided - if yes, activate immediately
-    const shouldActivate = paymentId && paymentMethod; // Activate if payment info is provided
+    // Check if payment is provided - if yes, activate immediately (DEPRECATED: defer to webhook)
+    const shouldActivate = false; // We don't activate or set dates here anymore. The webhook does.
 
     // Create or update subscription directly (no redemption needed)
     let subscription = await Subscription.findOne({ user: recipient._id });
 
-    if (subscription && subscription.isActive && subscription.endDate > startDate) {
-      // Extend existing active subscription
-      const currentEndDate = new Date(subscription.endDate);
-      if (plan === 'yearly') {
-        currentEndDate.setFullYear(currentEndDate.getFullYear() + 1);
-      } else {
-        currentEndDate.setMonth(currentEndDate.getMonth() + 1);
-      }
-      subscription.endDate = currentEndDate;
-      // Upgrade to yearly if gifting yearly
-      if (plan === 'yearly' && subscription.plan !== 'yearly') {
-        subscription.plan = 'yearly';
-        subscription.price = prices.yearly;
-      }
+    if (subscription) {
+      subscription.plan = plan;
+      subscription.planState = 'inactive';
+      subscription.paymentStatus = 'pending';
+      subscription.paymentId = paymentId;
+      subscription.paymentMethod = paymentMethod || 'REVENUECAT';
+      subscription.revenuecatId = recipient._id; // Recipient gets the subscription
+      subscription.autoRenew = false;
     } else {
-      // Create new subscription or replace expired one
-      if (subscription) {
-        subscription.plan = plan;
-        subscription.price = prices[plan];
-        subscription.startDate = startDate;
-        subscription.endDate = endDate;
-        subscription.isActive = true;
-        subscription.isTrial = false;
-        subscription.paymentId = paymentId || `gift-${Date.now()}`;
-        subscription.paymentMethod = paymentMethod || 'gift';
-      } else {
-        subscription = new Subscription({
-          user: recipient._id,
-          plan,
-          price: prices[plan],
-          startDate,
-          endDate,
-          isActive: true,
-          isTrial: false,
-          paymentId: paymentId || `gift-${Date.now()}`,
-          paymentMethod: paymentMethod || 'gift'
-        });
-      }
+      subscription = new Subscription({
+        user: recipient._id,
+        plan,
+        planState: 'inactive',   // Default inactive until webhook
+        paymentStatus: 'pending',
+        paymentId,
+        paymentMethod: paymentMethod || 'REVENUECAT',
+        revenuecatId: recipient._id,
+        autoRenew: false
+      });
     }
 
     await subscription.save();
 
-    // Update user subscription field
-    await User.findByIdAndUpdate(recipient._id, {
-      'subscription.plan': plan,
-      'subscription.startDate': startDate,
-      'subscription.endDate': endDate,
-      'subscription.isActive': true,
-      'subscription.paymentId': paymentId || `gift-${Date.now()}`
-    });
+    // We do NOT update User.subscription properties here. That is exclusively the webhook's job now.
 
     // Calculate gift expiration (for record keeping)
     const duration = plan === 'yearly' ? 12 : 1;
@@ -139,8 +113,8 @@ export const createGiftSubscription = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: shouldActivate 
-        ? 'Gift subscription activated successfully' 
+      message: shouldActivate
+        ? 'Gift subscription activated successfully'
         : 'Gift subscription created successfully. Payment required to activate.',
       data: {
         giftSubscription: {

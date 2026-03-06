@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, getPartnerCalendarEnhanced, getPartnerSwitchHistory, getPartnerLogs, getPartnerLogByDate, disconnectPartner, viewPartnerByCode, purchaseSubscriptionForPartner } from '../controllers/partner.controller/share.controller.js';
+import { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, getPartnerCalendarEnhanced, getPartnerSwitchHistory, getPartnerLogs, getPartnerLogByDate, disconnectPartner, viewPartnerByCode, purchaseSubscriptionForPartner, getConnectedPartners, revokePartnerAccess } from '../controllers/partner.controller/share.controller.js';
 
 const router = express.Router();
 
@@ -20,6 +20,8 @@ router.get('/logs', getPartnerLogs);
 router.get('/logs/by-date', getPartnerLogByDate);
 router.post('/disconnect', disconnectPartner);
 router.delete('/disconnect', disconnectPartner);
+router.get('/connected', getConnectedPartners);
+router.post('/revoke', revokePartnerAccess);
 // Gift subscription: payer buys subscription for the user who owns the code (from partner view page)
 router.post('/gift-subscription', purchaseSubscriptionForPartner);
 

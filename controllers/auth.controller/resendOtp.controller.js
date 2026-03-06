@@ -1,5 +1,6 @@
 import User from '../../models/User.model.js';
 import OtpToken from '../../models/OtpToken.model.js';
+import { sendOtpEmail } from '../../utils/email.js';
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 10;
@@ -73,6 +74,9 @@ export const resendOtp = async (req, res) => {
       purpose,
       expiresAt
     });
+
+    // Send OTP via email using nodemailer
+    await sendOtpEmail(normalEmail, otp, purpose);
 
     if (process.env.NODE_ENV === 'development' && req.query.dev === '1') {
       return res.json({

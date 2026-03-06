@@ -1,5 +1,6 @@
 import User from '../../models/User.model.js';
 import OtpToken from '../../models/OtpToken.model.js';
+import { sendOtpEmail } from '../../utils/email.js';
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 10;
@@ -58,7 +59,8 @@ export const forgotPassword = async (req, res) => {
       expiresAt
     });
 
-    // TODO: Send OTP via email (nodemailer). For now we only persist it.
+    // Send OTP via email using nodemailer
+    await sendOtpEmail(normalEmail, otp, 'forgot_password');
     // In development, optional query ?dev=1 can return OTP for testing.
     if (process.env.NODE_ENV === 'development' && req.query.dev === '1') {
       return res.json({

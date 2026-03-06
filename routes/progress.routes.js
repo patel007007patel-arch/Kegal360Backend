@@ -8,6 +8,7 @@ import {
   getSessionProgress,
   getAllUserProgress
 } from '../controllers/progress.controller.js';
+import { getMonthlyProgress } from '../controllers/monthlyProgress.controller.js';
 
 const router = express.Router();
 
@@ -19,6 +20,7 @@ router.post('/start', startSession);
 router.post('/step/complete', completeStep);
 router.post('/complete', completeSession);
 router.get('/session/:sessionId', getSessionProgress);
+router.get('/monthly', getMonthlyProgress);
 router.get('/all', getAllUserProgress);
 
 export default router;

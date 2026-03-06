@@ -10,6 +10,7 @@ import * as sequenceController from '../controllers/admin.controller/sequence.co
 import * as sessionController from '../controllers/admin.controller/session.controller.js';
 import * as stepController from '../controllers/admin.controller/step.controller.js';
 import * as mediaController from '../controllers/admin.controller/media.controller.js';
+import * as meditationController from '../controllers/admin.controller/meditation.controller.js';
 import * as giftController from '../controllers/admin.controller/gift.controller.js';
 import { getAdminLogs, deleteAdminLog } from '../controllers/admin.controller/logs.controller.js';
 import { getAdminCycles, deleteAdminCycle } from '../controllers/admin.controller/cycles.controller.js';
@@ -103,6 +104,13 @@ router.get('/media/:id', mediaController.getMediaById);
 router.post('/media', requireMultipart, uploadMediaAndThumbnail, normalizeVideoUpload, mediaController.createMedia);
 router.put('/media/:id', optionalMultipartForMediaUpdate, mediaController.updateMedia);
 router.delete('/media/:id', mediaController.deleteMedia);
+
+// Meditation Manager
+router.get('/meditations', meditationController.getAllMeditations);
+router.get('/meditations/:id', meditationController.getMeditationById);
+router.post('/meditations', requireMultipart, uploadMediaAndThumbnail, normalizeVideoUpload, meditationController.createMeditation);
+router.put('/meditations/:id', optionalMultipartForMediaUpdate, meditationController.updateMeditation);
+router.delete('/meditations/:id', meditationController.deleteMeditation);
 
 // Logs
 router.get('/logs', getAdminLogs);

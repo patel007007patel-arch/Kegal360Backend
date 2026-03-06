@@ -22,6 +22,9 @@ import favoriteRoutes from './routes/favorite.routes.js';
 import insightsRoutes from './routes/insights.routes.js';
 import customLogRoutes from './routes/customLog.routes.js';
 import seedRoutes from './routes/seed.routes.js';
+import meditationRoutes from './routes/meditation.routes.js';
+import streakRoutes from './routes/streak.routes.js';
+import webhookRoutes from './routes/webhook.routes.js';
 
 // Import notification scheduler
 import { initializeSchedulers } from './utils/notificationScheduler.js';
@@ -35,7 +38,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // CORS: allow multiple origins (comma-separated FRONTEND_URL). Each normalized (no trailing slash).
-const defaultOrigins = ['http://localhost:3000', 'https://kegal360-frontned.vercel.app', 'https://admin.kegel360.com'];
+const defaultOrigins = ['http://localhost:3000', 'https://kegal360-frontned.vercel.app', 'https://admin.kegel360.com', 'http://localhost:5000', 'http://localhost:3001'];
 const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean)
   : defaultOrigins;
@@ -84,8 +87,8 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/k360', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('✅ MongoDB Connected'))
-.catch(err => console.error('❌ MongoDB Connection Error:', err));
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -105,6 +108,9 @@ app.use('/api/favorites', favoriteRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/custom-logs', customLogRoutes);
 app.use('/api/seed', seedRoutes);
+app.use('/api/meditations', meditationRoutes);
+app.use('/api/streaks', streakRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -115,10 +121,10 @@ app.get('/api/health', (req, res) => {
 app.post('/api/auth/login/test', (req, res) => {
   console.log('🧪 Test login endpoint hit!');
   console.log('📦 Request body:', req.body);
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'Test endpoint working',
-    received: req.body 
+    received: req.body
   });
 });
 
@@ -147,7 +153,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-  
+
   // Initialize notification schedulers
   initializeSchedulers();
 });

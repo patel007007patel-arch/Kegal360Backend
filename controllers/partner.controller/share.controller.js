@@ -100,7 +100,7 @@ async function buildHomeDataForUser(user) {
 export const generateShareCode = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    
+
     // Always generate a new unique code
     await user.generatePartnerCode();
     await user.save();
@@ -126,7 +126,7 @@ export const generateShareCode = async (req, res) => {
 export const getMyPartnerCode = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    
+
     if (!user.partnerCode) {
       // Generate if doesn't exist
       await user.generatePartnerCode();
@@ -593,7 +593,7 @@ export const disconnectPartner = async (req, res) => {
 export const viewPartnerByCode = async (req, res) => {
   try {
     const { code } = req.query;
-    
+
     if (!code) {
       return res.status(400).json({
         success: false,
@@ -766,4 +766,130 @@ export const purchaseSubscriptionForPartner = async (req, res) => {
   }
 };
 
-export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, getPartnerCalendarEnhanced, getPartnerSwitchHistory, getPartnerLogs, getPartnerLogByDate, disconnectPartner, viewPartnerByCode, purchaseSubscriptionForPartner };
+/**
+ * GET /api/partners/connected
+ * Returns a list of users who have connected to the current user's data (those in sharedWith).
+ * Also indicates if a connected user has provided an active gift subscription to the current user.
+ */
+export const getConnectedPartners = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Populate the users who are connected to my code
+    const user = await User.findById(userId).populate('sharedWith', 'name email profilePicture');
+
+    if (!user || !user.sharedWith || user.sharedWith.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          connectedPartners: []
+        }
+      });
+    }
+
+    const GiftSubscription = (await import('../../models/GiftSubscription.model.js')).default;
+    const now = new Date();
+
+    const connectedPartnersData = await Promise.all(user.sharedWith.map(async (partner) => {
+      // Check if this partner has gifted an active subscription to the current user
+      const activeGift = await GiftSubscription.findOne({
+        recipient: userId,
+        sender: partner._id,
+        status: 'active',
+        expiresAt: { $gt: now }
+      });
+
+      return {
+        id: partner._id,
+        name: partner.name,
+        email: partner.email,
+        profilePicture: partner.profilePicture,
+        hasProvidedActiveGift: !!activeGift
+      };
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        connectedPartners: connectedPartnersData
+      }
+    });
+
+  } catch (error) {
+    console.error('Get connected partners error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching connected partners',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * POST /api/partners/revoke
+ * Removes a specific partner from the current user's sharedWith list,
+ * preventing that partner from accessing shared data.
+ * Cannot block if the partner has provided an active gift subscription.
+ */
+export const revokePartnerAccess = async (req, res) => {
+  try {
+    const { partnerId } = req.body;
+    const userId = req.user._id;
+
+    if (!partnerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'partnerId is required in the body'
+      });
+    }
+
+    const User = (await import('../../models/User.model.js')).default;
+    const GiftSubscription = (await import('../../models/GiftSubscription.model.js')).default;
+    const now = new Date();
+
+    // Check if this partner has provided an active gift subscription to the current user
+    const activeGift = await GiftSubscription.findOne({
+      recipient: userId,
+      sender: partnerId,
+      status: 'active',
+      expiresAt: { $gt: now }
+    });
+
+    if (activeGift) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot revoke access: This user has provided an active gift subscription that has not expired.'
+      });
+    }
+
+    const user = await User.findById(userId);
+
+    // Remove partner from current user's sharedWith list
+    if (user.sharedWith && user.sharedWith.includes(partnerId)) {
+      user.sharedWith = user.sharedWith.filter(id => id.toString() !== partnerId.toString());
+      await user.save();
+    }
+
+    // Unlink the partner user
+    const partnerUser = await User.findById(partnerId);
+    if (partnerUser && partnerUser.sharedBy && partnerUser.sharedBy.toString() === userId.toString()) {
+      partnerUser.sharedBy = undefined;
+      await partnerUser.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Partner access revoked successfully.'
+    });
+
+  } catch (error) {
+    console.error('Revoke partner access error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error revoking partner access',
+      error: error.message
+    });
+  }
+};
+
+export default { generateShareCode, getMyPartnerCode, connectPartner, getSharedData, getPartnerCalendarEnhanced, getPartnerSwitchHistory, getPartnerLogs, getPartnerLogByDate, disconnectPartner, viewPartnerByCode, purchaseSubscriptionForPartner, getConnectedPartners, revokePartnerAccess };

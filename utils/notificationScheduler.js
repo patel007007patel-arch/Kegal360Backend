@@ -3,6 +3,7 @@ import Notification from '../models/Notification.model.js';
 import User from '../models/User.model.js';
 import Log from '../models/Log.model.js';
 import Cycle from '../models/Cycle.model.js';
+import UserProgress from '../models/UserProgress.model.js';
 import { calculateNextPeriod, getEffectiveCycleLength } from '../services/cycleCalculation.service.js';
 
 // Schedule period reminders (uses same next-period logic as home API so reminders align with predictions)
@@ -78,11 +79,36 @@ export const scheduleLogReminders = () => {
   });
 };
 
+// Schedule monthly progress reset
+export const scheduleMonthlyProgressReset = () => {
+  // Run at 00:00 on the 1st of every month
+  cron.schedule('0 0 1 * *', async () => {
+    try {
+      console.log('🔄 Starting monthly progress reset...');
+
+      const result = await UserProgress.updateMany({}, {
+        $set: {
+          completedSteps: [],
+          timeSpent: 0,
+          lastStepIndex: 0,
+          sessionCompleted: false,
+          sessionStarted: false
+        }
+      });
+
+      console.log(`✅ Monthly progress reset complete. Modified ${result.modifiedCount} documents.`);
+    } catch (error) {
+      console.error('❌ Error executing monthly progress reset:', error);
+    }
+  });
+};
+
 // Initialize all schedulers
 export const initializeSchedulers = () => {
   schedulePeriodReminders();
   scheduleLogReminders();
+  scheduleMonthlyProgressReset();
   console.log('✅ Notification schedulers initialized');
 };
 
-export default { schedulePeriodReminders, scheduleLogReminders, initializeSchedulers };
+export default { schedulePeriodReminders, scheduleLogReminders, scheduleMonthlyProgressReset, initializeSchedulers };
