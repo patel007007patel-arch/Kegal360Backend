@@ -874,6 +874,7 @@ export const revokePartnerAccess = async (req, res) => {
     const partnerUser = await User.findById(partnerId);
     if (partnerUser && partnerUser.sharedBy && partnerUser.sharedBy.toString() === userId.toString()) {
       partnerUser.sharedBy = undefined;
+      partnerUser.onboardingCompleted = false;
       await partnerUser.save();
     }
 
