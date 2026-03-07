@@ -117,7 +117,10 @@ async function validateAndNormalizeCustomLogs(customLogsInput, userId) {
 export const createLog = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { date, flow, flowIntensity, mood, symptoms, phase, temperature, notes, customLogs: customLogsInput } = req.body;
+    let { date, flow, flowIntensity, mood, symptoms, phase, temperature, notes, customLogs: customLogsInput } = req.body;
+
+    if (flow === '') flow = null;
+    if (flowIntensity === '') flowIntensity = null;
 
     const logDate = toUtcMidnight(date);
     const dayEnd = addDaysUtc(logDate, 1);
