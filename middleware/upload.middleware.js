@@ -212,7 +212,20 @@ const mediaFileFilter = (req, file, cb) => {
 const mediaAndThumbnailStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.fieldname === 'thumbnail') return cb(null, thumbnailDir);
-    const mediaType = (req.body?.mediaType || 'video').toLowerCase();
+
+    // Try to determine media type from file extension first, since req.body might not be populated yet
+    let mediaType = 'video';
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (/\.(mp3|wav|m4a|ogg)$/i.test(ext)) {
+      mediaType = 'audio';
+    } else if (/\.(jpeg|jpg|png|gif|webp)$/i.test(ext)) {
+      mediaType = 'image';
+    } else if (/\.(mp4|avi|mov|wmv|flv|webm)$/i.test(ext)) {
+      mediaType = 'video';
+    } else if (req.body?.mediaType) {
+      mediaType = String(req.body.mediaType).toLowerCase();
+    }
+
     const dir = mediaTypeToDir[mediaType] || videoDir;
     cb(null, dir);
   },
@@ -222,7 +235,19 @@ const mediaAndThumbnailStorage = multer.diskStorage({
     if (file.fieldname === 'thumbnail') {
       return cb(null, 'thumbnail-' + uniqueSuffix + ext);
     }
-    const mediaType = (req.body?.mediaType || 'video').toLowerCase();
+
+    let mediaType = 'video';
+    const extLower = ext.toLowerCase();
+    if (/\.(mp3|wav|m4a|ogg)$/i.test(extLower)) {
+      mediaType = 'audio';
+    } else if (/\.(jpeg|jpg|png|gif|webp)$/i.test(extLower)) {
+      mediaType = 'image';
+    } else if (/\.(mp4|avi|mov|wmv|flv|webm)$/i.test(extLower)) {
+      mediaType = 'video';
+    } else if (req.body?.mediaType) {
+      mediaType = String(req.body.mediaType).toLowerCase();
+    }
+
     const prefix = mediaTypeToPrefix[mediaType] || 'video-';
     cb(null, prefix + uniqueSuffix + ext);
   }
