@@ -112,6 +112,10 @@ const userSchema = new mongoose.Schema({
   },
   // Profile
   profilePicture: String,
+  language: {
+    type: String,
+    default: 'eng'
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -122,14 +126,14 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
 // Generate unique partner code (6 capital letters only)
-userSchema.statics.generateUniquePartnerCode = async function() {
+userSchema.statics.generateUniquePartnerCode = async function () {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let code;
   let isUnique = false;
@@ -159,7 +163,7 @@ userSchema.statics.generateUniquePartnerCode = async function() {
 };
 
 // Generate partner code (instance method - regenerates unique code)
-userSchema.methods.generatePartnerCode = async function() {
+userSchema.methods.generatePartnerCode = async function () {
   const User = this.constructor;
   const code = await User.generateUniquePartnerCode();
   this.partnerCode = code;
@@ -167,7 +171,7 @@ userSchema.methods.generatePartnerCode = async function() {
 };
 
 // Compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
 };
