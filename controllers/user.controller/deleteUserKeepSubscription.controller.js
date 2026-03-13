@@ -51,11 +51,34 @@ export const deleteUserKeepSubscription = async (req, res) => {
             { $unset: { sharedBy: '' } }
         );
 
-        await User.findByIdAndDelete(userId);
+        // Reset user data without deleting the account
+        await User.findByIdAndUpdate(userId, {
+            name: '',
+            birthYear: null,
+            appFor: 'myself',
+            onboardingCompleted: false,
+            trackCycle: true,
+            cycleType: 'regular',
+            cycleLength: 28,
+            periodLength: 5,
+            cycleLengthRange: null,
+            lastPeriodStart: null,
+            lastPeriodEnd: null,
+            partnerCode: null,
+            sharedWith: [],
+            sharedBy: null,
+            profilePicture: '',
+            language: 'eng',
+            settings: {
+                pushNotifications: true,
+                darkTheme: false,
+                emailUpdates: false
+            }
+        });
 
         res.json({
             success: true,
-            message: 'User and all associated data (excluding subscriptions) have been permanently deleted'
+            message: 'User data (excluding subscriptions) has been permanently deleted/reset'
         });
     } catch (error) {
         console.error('Delete user (keep subscription) error:', error);
